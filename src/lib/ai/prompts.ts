@@ -33,7 +33,17 @@ export interface GenerationContext {
   settings: BusinessSettings;
   products: Product[];
   productImages: { id: string; product_id: string; image_type: string; alt_text: string | null }[];
-  recentPosts: { title: string; content: string; post_type: string | null; status: string; published_at: string | null; created_at: string }[];
+  recentPosts: {
+    title: string;
+    content: string;
+    post_type: string | null;
+    status: string;
+    published_at: string | null;
+    created_at: string;
+    /** "facebook" = hentet fra siden (kan være publisert utenom appen) */
+    source?: "app" | "facebook";
+    has_image?: boolean;
+  }[];
   slots: { iso: string; weekday: string; theme: string | null }[];
   seasonalEvents: { name: string; date: string; angle: string }[];
   focus?: { postTypes?: string[]; productIds?: string[]; instructions?: string };
@@ -61,12 +71,15 @@ export function buildGenerationPrompt(ctx: GenerationContext): string {
     }));
 
   const history = ctx.recentPosts.map((p) => ({
-    type: p.post_type,
-    status: p.status,
-    dato: p.published_at ?? p.created_at,
-    overskrift: trim(p.title, 120),
+    kilde: p.source === "facebook" ? "facebook-siden" : "appen",
+    type: p.post_type ?? undefined,
+    status: p.status === "PUBLISHED" ? "publisert" : p.status === "PENDING_APPROVAL" ? "venter på godkjenning" : p.status.toLowerCase(),
+    dato: (p.published_at ?? p.created_at).slice(0, 10),
+    overskrift: p.title ? trim(p.title, 120) : undefined,
     utdrag: trim(p.content, 280),
+    bilde: p.has_image === undefined ? undefined : p.has_image,
   }));
+  const publishedCount = ctx.recentPosts.filter((p) => p.status === "PUBLISHED").length;
 
   return `Dagens dato og tid: ${ctx.now.toISOString()} (tidssone ${settings.timezone}).
 
@@ -92,8 +105,16 @@ ${ctx.seasonalEvents.length ? ctx.seasonalEvents.map((e) => `- ${e.name} (${e.da
 PRODUKTBIBLIOTEK (eneste sannhetskilde)
 ${products.length ? JSON.stringify(products, null, 1) : "Biblioteket er tomt. Lag innlegg om bedriften, håndverket og nettbutikken generelt uten å nevne konkrete produkter, priser eller egenskaper. Lenk til nettbutikkens forside."}
 
-TIDLIGERE INNLEGG (unngå gjentakelser i tema, åpning og formuleringer)
-${history.length ? JSON.stringify(history, null, 1) : "Ingen tidligere innlegg."}`;
+TIDLIGERE INNLEGG – fra appen og fra Facebook-siden, nyeste først (${publishedCount} publisert)
+${history.length ? JSON.stringify(history, null, 1) : "Ingen tidligere innlegg."}
+
+VURDER FØR DU SKRIVER
+Se på hva siden faktisk har publisert de siste ukene (også innlegg fra facebook-siden som ikke er laget i appen) og velg det som er naturlig å poste NÅ:
+- Unngå produkter, temaer, vinkler og åpninger som er brukt nylig. Et produkt som nettopp er vist frem, bør få hvile noen uker med mindre eieren ber om det.
+- Prioriter produkter og temaer som ikke har vært nevnt på lenge, eller aldri, og det som passer årstiden og kommende anledninger.
+- Følg opp det som mangler i miksen (f.eks. lite håndverk/bak kulissene eller lite engasjement nylig).
+- Innlegg som venter på godkjenning er også planlagt – ikke lag nesten like innlegg.
+- Forklar kort i "rationale" hvorfor innlegget passer nå sett opp mot det som nylig er publisert, og oppsummer valgene i "planning_notes".`;
 }
 
 export function buildRewritePrompt(input: {

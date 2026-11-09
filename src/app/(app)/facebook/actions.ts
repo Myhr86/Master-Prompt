@@ -5,6 +5,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth";
 import { disconnect, graphClient, saveConnection, verifyConnection } from "@/lib/facebook/connection";
+import { syncPagePosts } from "@/lib/facebook/sync";
+import { enforceRateLimit } from "@/lib/security";
+import { log } from "@/lib/logger";
 import { clearOAuthCookie, readOAuthCookie } from "@/lib/facebook/oauth-cookie";
 import { audit } from "@/lib/audit";
 import { toActionError, UserFacingError, type ActionResult } from "@/lib/action-result";
@@ -27,6 +30,12 @@ export async function confirmPage(_prev: ActionResult | undefined, fd: FormData)
     await saveConnection({ pageId: page.id, pageName: page.name, pageToken: page.access_token, expiresAt: info.expiresAt, scopes: info.scopes.length ? info.scopes : cookie.scopes ?? [], connectedBy: owner.id });
     await clearOAuthCookie();
     await audit("facebook.connected", { actorId: owner.id, details: { pageId: page.id, pageName: page.name } });
+    // Hent eksisterende innlegg med en gang, slik at AI-en kjenner historikken. Feil her stopper ikke tilkoblingen.
+    try {
+      await syncPagePosts();
+    } catch (e) {
+      log.warn("facebook.initial_sync_failed", { error: e });
+    }
     ok = true;
   } catch (err) {
     return toActionError(err, "confirmPage");
@@ -64,5 +73,19 @@ export async function checkFacebook(): Promise<ActionResult> {
     return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
   } catch (err) {
     return toActionError(err, "checkFacebook");
+  }
+}
+
+/** Henter eksisterende innlegg fra Facebook-siden (kun lesing). */
+export async function syncFacebookPosts(): Promise<ActionResult> {
+  try {
+    const owner = await requireOwner();
+    await enforceRateLimit(`fb-sync:${owner.id}`, 20, 3600);
+    const r = await syncPagePosts();
+    if (r.ok) await audit("facebook.posts_synced", { actorId: owner.id, details: { count: r.count } });
+    revalidatePath("/", "layout");
+    return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
+  } catch (err) {
+    return toActionError(err, "syncFacebookPosts");
   }
 }

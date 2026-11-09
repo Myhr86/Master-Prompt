@@ -242,6 +242,16 @@ run("Database: RLS, godkjenning og publiseringsvern", () => {
     });
   });
 
+  it("Facebook-innlegg fra siden: kun eier kan lese, ingen kan skrive via appen", async () => {
+    await as(p, { kind: "service" }, (c) => c.query("insert into facebook_page_posts (page_id, facebook_post_id, message, created_time) values ('1','1_99','Hei fra siden', now())"));
+    const own = await as(p, O(), (c) => c.query("select message from facebook_page_posts").then((r) => r.rows));
+    expect(own).toEqual([{ message: "Hei fra siden" }]);
+    const other = await as(p, { kind: "authenticated", sub: stranger }, (c) => c.query("select * from facebook_page_posts").then((r) => r.rows));
+    expect(other).toHaveLength(0);
+    await expect(as(p, { kind: "anon" }, (c) => c.query("select * from facebook_page_posts"))).rejects.toThrow(/permission denied/);
+    await expect(as(p, O(), (c) => c.query("insert into facebook_page_posts (page_id, facebook_post_id, created_time) values ('1','1_2', now())"))).rejects.toThrow(/permission denied/);
+  });
+
   it("rate limiting slår inn etter grensen", async () => {
     const results: boolean[] = [];
     for (let i = 0; i < 4; i++) results.push(await as(p, O(), (c) => c.query("select check_rate_limit('test-key', 3, 60) ok").then((r) => r.rows[0].ok)));

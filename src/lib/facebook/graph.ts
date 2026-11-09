@@ -34,6 +34,15 @@ export class GraphError extends Error {
   }
 }
 
+export interface PagePost {
+  id: string;
+  message?: string;
+  created_time: string;
+  permalink_url?: string;
+  full_picture?: string;
+  status_type?: string;
+}
+
 export interface FacebookPage {
   id: string;
   name: string;
@@ -184,6 +193,24 @@ export class GraphClient {
     );
     const norm = (s: string) => s.replace(/\s+/g, " ").trim();
     return r.data.find((p) => p.message && norm(p.message) === norm(message)) ?? null;
+  }
+
+  /**
+   * Henter publiserte innlegg på siden (nyeste først), med sidevisning.
+   * Krever pages_read_engagement.
+   */
+  async listPublishedPosts(pageId: string, pageToken: string, max = 100): Promise<PagePost[]> {
+    const out: PagePost[] = [];
+    let after: string | undefined;
+    while (out.length < max) {
+      const params: Record<string, string> = { fields: "id,message,created_time,permalink_url,full_picture,status_type", limit: String(Math.min(50, max - out.length)) };
+      if (after) params.after = after;
+      const r = await this.request<{ data: PagePost[]; paging?: { cursors?: { after?: string }; next?: string } }>("GET", `${pageId}/published_posts`, params, pageToken);
+      out.push(...r.data);
+      after = r.paging?.cursors?.after;
+      if (!r.paging?.next || !after || r.data.length === 0) break;
+    }
+    return out.slice(0, max);
   }
 
   async getEngagement(postId: string, pageToken: string): Promise<Record<string, number>> {

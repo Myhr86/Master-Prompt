@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireOwnerPage } from "@/lib/auth";
-import { getProducts, getSettings } from "@/lib/data";
+import { getFacebookStatus, getPagePostStats, getProducts, getSettings } from "@/lib/data";
 import { integrations } from "@/lib/env";
 import { Notice, PageHeader } from "@/components/ui";
 import { GenerateForm } from "./generate-form";
@@ -14,7 +14,7 @@ export const maxDuration = 300;
 export default async function GeneratePage({ searchParams }: { searchParams: Promise<{ anledning?: string }> }) {
   await requireOwnerPage();
   const { anledning } = await searchParams;
-  const [settings, products] = await Promise.all([getSettings(), getProducts({ activeOnly: true })]);
+  const [settings, products, pagePosts, fb] = await Promise.all([getSettings(), getProducts({ activeOnly: true }), getPagePostStats(), getFacebookStatus()]);
   const integ = integrations();
   const todayKey = osloParts(new Date()).dateKey;
   const occasion = anledning ? upcomingSeasonalEvents(todayKey, addDays(todayKey, 365)).find((e) => e.key === anledning) : undefined;
@@ -31,6 +31,18 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
             Legg inn <code>ANTHROPIC_API_KEY</code> i miljøvariablene (Vercel → Settings → Environment Variables) og publiser på nytt. Se README, avsnittet «Anthropic API».
           </Notice>
         </div>
+      )}
+      {fb?.connection_status === "connected" && (pagePosts?.count ?? 0) === 0 && (
+        <div className="mb-5">
+          <Notice tone="info" title="Claude kjenner ikke innleggene på Facebook-siden ennå">
+            Gå til Innstillinger → Facebook-tilkobling og trykk «Hent eksisterende innlegg», så unngår Claude å gjenta det som allerede er publisert.
+          </Notice>
+        </div>
+      )}
+      {(pagePosts?.count ?? 0) > 0 && (
+        <p className="mb-5 text-sm text-ink-soft">
+          Claude tar hensyn til {pagePosts!.count} innlegg fra Facebook-siden og innleggene i appen, og velger det som er naturlig å poste nå.
+        </p>
       )}
       {products.length === 0 && (
         <div className="mb-5">

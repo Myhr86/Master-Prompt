@@ -2,14 +2,24 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { checkFacebook, disconnectFacebook } from "../facebook/actions";
+import { checkFacebook, disconnectFacebook, syncFacebookPosts } from "../facebook/actions";
 import { Button, Card, Notice } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import type { FacebookStatus } from "@/lib/types";
 
 const STATUS: Record<string, string> = { connected: "Tilkoblet", expired: "Utløpt", revoked: "Tilbakekalt", error: "Feil" };
 
-export function FacebookPanel({ status, metaConfigured, graphVersion }: { status: FacebookStatus | null; metaConfigured: boolean; graphVersion: string | null }) {
+export function FacebookPanel({
+  status,
+  metaConfigured,
+  graphVersion,
+  pagePosts,
+}: {
+  status: FacebookStatus | null;
+  metaConfigured: boolean;
+  graphVersion: string | null;
+  pagePosts: { count: number; lastImported: string | null } | null;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -56,12 +66,24 @@ export function FacebookPanel({ status, metaConfigured, graphVersion }: { status
             <Button variant="secondary" disabled={pending || !metaConfigured} onClick={() => start(async () => { const r = await checkFacebook(); setMsg({ ok: r.ok, text: r.ok ? r.message ?? "" : r.error }); router.refresh(); })}>
               Test tilkoblingen
             </Button>
+            <Button variant="secondary" disabled={pending || !metaConfigured} onClick={() => start(async () => { const r = await syncFacebookPosts(); setMsg({ ok: r.ok, text: r.ok ? r.message ?? "" : r.error }); router.refresh(); })}>
+              {pending ? "Henter …" : "Hent eksisterende innlegg"}
+            </Button>
             <Button variant="danger" disabled={pending} onClick={() => confirm("Koble fra Facebook og slette tokenet?") && start(async () => { const r = await disconnectFacebook(); setMsg({ ok: r.ok, text: r.ok ? r.message ?? "" : r.error }); router.refresh(); })}>
               Koble fra
             </Button>
           </>
         )}
       </div>
+      {status && (
+        <p className="mt-3 text-sm text-ink-soft">
+          {pagePosts === null
+            ? "Tabellen for eksisterende innlegg mangler – kjør migrasjon 4 i Supabase."
+            : pagePosts.count
+              ? `${pagePosts.count} innlegg fra siden er hentet${pagePosts.lastImported ? ` (sist ${new Date(pagePosts.lastImported).toLocaleString("nb-NO", { timeZone: "Europe/Oslo" })})` : ""}. Claude bruker dem for å unngå gjentakelser. Oppdateres automatisk hver natt.`
+              : "Ingen innlegg fra siden er hentet ennå. Trykk «Hent eksisterende innlegg» så Claude kjenner historikken."}
+        </p>
+      )}
       <details className="mt-4 text-sm text-ink-soft">
         <summary className="cursor-pointer text-ink">Hvilke tillatelser brukes?</summary>
         <ul className="ml-4 mt-2 list-disc">

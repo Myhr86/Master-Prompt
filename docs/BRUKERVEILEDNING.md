@@ -26,6 +26,7 @@ Dette gjør du én gang. Du må gjøre det på nytt hvis tilgangen utløper.
 4. Godta tillatelsene. Systemet ber bare om å se sidene dine, publisere innlegg du har godkjent og lese reaksjoner og kommentarer til statistikken.
 5. Velg **Myhr Tre og Design** og trykk **Bekreft tilkobling**.
 6. Trykk **Test tilkoblingen** for å se at alt virker.
+7. Trykk **Hent eksisterende innlegg**. Da leser systemet innleggene som allerede ligger på siden, så AI-en ikke gjentar seg. Dette skjer også automatisk hver natt.
 
 Vil du koble fra, trykker du **Koble fra**. Da slettes tilgangen fra systemet.
 

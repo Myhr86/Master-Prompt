@@ -51,6 +51,23 @@ describe("Facebook Login og Graph API", () => {
     expect(err.kind).toBe("unknown_outcome");
   });
 
+  it("henter eksisterende innlegg fra siden med sidevisning og grense", async () => {
+    const seen: string[] = [];
+    const fetchImpl = (async (u: URL) => {
+      const url = new URL(String(u));
+      seen.push(url.searchParams.get("after") ?? "start");
+      const after = url.searchParams.get("after");
+      const page = after === "c1" ? 2 : 1;
+      const data = Array.from({ length: 2 }, (_, i) => ({ id: `1_${page}${i}`, message: `Innlegg ${page}.${i}`, created_time: "2026-10-01T10:00:00+0000" }));
+      return new Response(JSON.stringify({ data, paging: page === 1 ? { cursors: { after: "c1" }, next: "https://graph/neste" } : { cursors: { after: "c2" } } }), { status: 200 });
+    }) as typeof fetch;
+    const c = new GraphClient({ appId: "1", appSecret: "s", version: "v1.0", fetchImpl });
+    const posts = await c.listPublishedPosts("123", "t", 10);
+    expect(posts.map((p) => p.id)).toEqual(["1_10", "1_11", "1_20", "1_21"]);
+    expect(seen).toEqual(["start", "c1"]);
+    expect((await c.listPublishedPosts("123", "t", 3)).length).toBe(3);
+  });
+
   it("innsikt: utilgjengelige metrikker hoppes over i stedet for å gjettes", async () => {
     const fetchImpl = (async (u: URL) => {
       const metric = new URL(String(u)).searchParams.get("metric");

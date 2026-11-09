@@ -112,6 +112,27 @@ describe("AI-innholdsprodusent (test 3–4)", () => {
     expect(buildGenerationPrompt(ctx({ products: [] }))).toContain("Biblioteket er tomt");
   });
 
+  it("innlegg fra Facebook-siden tas med, og Claude bes vurdere hva som passer nå", () => {
+    const p = buildGenerationPrompt(
+      ctx({
+        recentPosts: [
+          { title: "", content: "Nye skjærefjøler i heltre er på plass!", post_type: null, status: "PUBLISHED", published_at: "2026-11-02T10:00:00Z", created_at: "2026-11-02T10:00:00Z", source: "facebook", has_image: true },
+        ],
+      }),
+    );
+    expect(p).toContain("facebook-siden");
+    expect(p).toContain("Nye skjærefjøler i heltre");
+    expect(p).toContain("VURDER FØR DU SKRIVER");
+    expect(p).toContain("1 publisert");
+  });
+
+  it("etterkontrollen sammenligner også med innlegg fra Facebook-siden", async () => {
+    const text = "Nye skjærefjøler i heltre er på plass i nettbutikken nå, perfekt som gave";
+    const call = vi.fn(async (_input: Parameters<StructuredCaller>[0]) => ({ data: { posts: [gen({ body: text })], planning_notes: "" }, model: "claude-opus-5-5", usage: {} })); // eslint-disable-line @typescript-eslint/no-unused-vars
+    const out = await generatePosts(ctx({ slots: [ctx().slots[0]!], recentPosts: [{ title: "", content: text, post_type: null, status: "PUBLISHED", published_at: "2026-11-02", created_at: "2026-11-02", source: "facebook" }] }), call as unknown as StructuredCaller);
+    expect(out.posts[0]!.warnings.join(" ")).toMatch(/ligner/);
+  });
+
   it("tidligere innlegg sendes med for å unngå gjentakelser", () => {
     const p = buildGenerationPrompt(ctx({ recentPosts: [{ title: "Gammel tittel", content: "Gammel tekst", post_type: "gaveide", status: "PUBLISHED", published_at: "2026-11-01", created_at: "2026-11-01" }] }));
     expect(p).toContain("Gammel tittel");

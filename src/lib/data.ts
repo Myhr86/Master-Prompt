@@ -31,3 +31,12 @@ export async function getPost(id: string): Promise<Post | null> {
   if (error) throw error;
   return (data as Post | null) ?? null;
 }
+
+/** Antall hentede innlegg fra Facebook-siden. null = tabellen finnes ikke (migrasjon 4 mangler). */
+export async function getPagePostStats(): Promise<{ count: number; lastImported: string | null } | null> {
+  const supabase = await createClient();
+  const { count, error } = await supabase.from("facebook_page_posts").select("id", { count: "exact", head: true });
+  if (error) return null;
+  const { data } = await supabase.from("facebook_page_posts").select("imported_at").order("imported_at", { ascending: false }).limit(1).maybeSingle();
+  return { count: count ?? 0, lastImported: data?.imported_at ?? null };
+}

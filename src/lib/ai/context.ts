@@ -8,17 +8,28 @@ import type { GenerationContext } from "./prompts";
 /** Bygger konteksten Claude får: innstillinger, produktbibliotek, historikk og tidspunkter. */
 export async function loadGenerationContext(input: { count: number; startDate?: string; postTypes?: string[]; productIds?: string[]; instructions?: string }): Promise<GenerationContext> {
   const supabase = await createClient();
-  const [settings, products, imagesRes, recentRes] = await Promise.all([
+  const [settings, products, imagesRes, recentRes, fbRes] = await Promise.all([
     getSettings(),
     getProducts({ activeOnly: true }),
     supabase.from("product_images").select("id, product_id, image_type, alt_text"),
     supabase
       .from("posts")
-      .select("title, content, post_type, status, published_at, created_at")
+      .select("title, content, post_type, status, published_at, created_at, facebook_post_id")
       .not("status", "eq", "REJECTED")
       .order("created_at", { ascending: false })
       .limit(40),
+    // Innlegg som allerede ligger på Facebook-siden (også publisert utenom appen).
+    supabase.from("facebook_page_posts").select("facebook_post_id, message, created_time, has_image").order("created_time", { ascending: false }).limit(60),
   ]);
+  const appPosts = (recentRes.data ?? []) as (GenerationContext["recentPosts"][number] & { facebook_post_id: string | null })[];
+  const appFbIds = new Set(appPosts.map((p) => p.facebook_post_id).filter(Boolean));
+  const fbPosts: GenerationContext["recentPosts"] = (fbRes.error ? [] : fbRes.data ?? [])
+    .filter((f) => !appFbIds.has(f.facebook_post_id) && f.message.trim())
+    .map((f) => ({ title: "", content: f.message, post_type: null, status: "PUBLISHED", published_at: f.created_time, created_at: f.created_time, source: "facebook" as const, has_image: f.has_image }));
+  // Én samlet tidslinje, nyeste først.
+  const recentPosts = [...appPosts.map((p) => ({ title: p.title, content: p.content, post_type: p.post_type, status: p.status, published_at: p.published_at, created_at: p.created_at, source: "app" as const })), ...fbPosts]
+    .sort((a, b) => (b.published_at ?? b.created_at).localeCompare(a.published_at ?? a.created_at))
+    .slice(0, 80);
   const now = new Date();
   const from = input.startDate ? osloToUtc(addDays(input.startDate, -1), "23:59") : now;
   const days = settings.preferred_days.length ? settings.preferred_days : [1, 3, 5];
@@ -40,7 +51,7 @@ export async function loadGenerationContext(input: { count: number; startDate?: 
     settings,
     products,
     productImages: (imagesRes.data ?? []) as GenerationContext["productImages"],
-    recentPosts: (recentRes.data ?? []) as GenerationContext["recentPosts"],
+    recentPosts,
     slots,
     seasonalEvents: seasonal.map((s) => ({ name: s.name, date: s.date, angle: s.angle })),
     focus: { postTypes: input.postTypes, productIds: input.productIds, instructions: input.instructions },

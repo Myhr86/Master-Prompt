@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireOwnerPage } from "@/lib/auth";
-import { getFacebookStatus, getProducts, getSettings } from "@/lib/data";
+import { getFacebookStatus, getPagePostStats, getProducts, getSettings } from "@/lib/data";
 import { env, integrations } from "@/lib/env";
 import { seasonalEventsForYear } from "@/lib/calendar/seasons";
 import { IMAGE_PROVIDER_OPTIONS } from "@/lib/images/providers";
@@ -25,7 +25,7 @@ const FB_MESSAGES: Record<string, { tone: "success" | "error" | "warn"; text: st
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ fb?: string }> }) {
   await requireOwnerPage();
   const { fb: fbMsg } = await searchParams;
-  const [settings, fb, products] = await Promise.all([getSettings(), getFacebookStatus(), getProducts()]);
+  const [settings, fb, products, pagePosts] = await Promise.all([getSettings(), getFacebookStatus(), getProducts(), getPagePostStats()]);
   const integ = integrations();
   const mode = effectivePublishMode(settings.test_mode);
   const year = new Date().getFullYear();
@@ -42,7 +42,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <Notice tone={msg.tone}>{msg.text}</Notice>
           </div>
         )}
-        <FacebookPanel status={fb} metaConfigured={integ.meta} graphVersion={env().META_GRAPH_API_VERSION ?? null} />
+        <FacebookPanel status={fb} metaConfigured={integ.meta} graphVersion={env().META_GRAPH_API_VERSION ?? null} pagePosts={pagePosts} />
       </section>
 
       <Card id="publisering" className="mb-6 scroll-mt-24 p-5">
