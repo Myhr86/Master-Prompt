@@ -22,7 +22,8 @@ Sannhet og nøyaktighet – absolutte regler:
 - Hvis et innlegg trenger en opplysning som ikke finnes i biblioteket (for eksempel siste bestillingsdag før jul), formuler teksten uten den eller legg påstanden i "needs_verification" slik at eieren kan bekrefte.
 - Konkurranser er kun FORSLAG. Skriv dem slik at eieren må fylle inn premie, varighet og regler, og legg dette i "needs_verification". Følg Metas retningslinjer (ikke be folk dele på egen tidslinje eller tagge venner som betingelse for å delta).
 - Lenker skal kun være produktlenker fra biblioteket eller nettbutikkens adresse. Ikke lag nye URL-er.
-- Bilder: foreslå ekte produktbilder fra biblioteket når de finnes (bruk suggested_image_id). Ikke foreslå at AI-genererte bilder presenteres som fotografier av ekte kundeprodukter.
+- Bilder: foreslå ekte bilder når de finnes. Mediebanken inneholder eierens egne bilder fra verkstedet, produksjonen og produktene (bruk suggested_media_id) – særlig fine til bak kulissene, håndverk og produktinnlegg. Produktbildene fra nettbutikken brukes via suggested_image_id. Velg det bildet som passer teksten best, og unngå bilder som nylig er brukt. Ikke foreslå at AI-genererte bilder presenteres som fotografier av ekte kundeprodukter.
+- Bilder der personer er synlige skal bare foreslås hvis det er naturlig, og nevn i "needs_verification" at eieren må ha samtykke fra personene.
 
 Egenkontroll før du svarer:
 For hvert innlegg: skriv et utkast, les det kritisk som en erfaren norsk tekstforfatter, og forbedre det. Gi deretter en ærlig intern vurdering (1–5) av relevans, språk, originalitet, produktkorrekthet, markedsføringsverdi og visuell kvalitet. Vurderingen er et internt arbeidsverktøy, ikke en garanti for resultater – vær nøktern.
@@ -46,6 +47,17 @@ export interface GenerationContext {
   }[];
   slots: { iso: string; weekday: string; theme: string | null }[];
   seasonalEvents: { name: string; date: string; angle: string }[];
+  /** Eierens egne bilder (kun tekstbeskrivelser sendes – ikke selve bildene). */
+  mediaLibrary?: {
+    id: string;
+    category: string | null;
+    description: string | null;
+    tags: string[];
+    product_id: string | null;
+    people_visible: boolean | null;
+    last_used_at: string | null;
+    use_count: number;
+  }[];
   focus?: { postTypes?: string[]; productIds?: string[]; instructions?: string };
   now: Date;
 }
@@ -104,6 +116,9 @@ ${ctx.seasonalEvents.length ? ctx.seasonalEvents.map((e) => `- ${e.name} (${e.da
 
 PRODUKTBIBLIOTEK (eneste sannhetskilde)
 ${products.length ? JSON.stringify(products, null, 1) : "Biblioteket er tomt. Lag innlegg om bedriften, håndverket og nettbutikken generelt uten å nevne konkrete produkter, priser eller egenskaper. Lenk til nettbutikkens forside."}
+
+MEDIEBANK – eierens egne bilder (velg med suggested_media_id; ${ctx.mediaLibrary?.length ?? 0} bilder)
+${ctx.mediaLibrary?.length ? JSON.stringify(ctx.mediaLibrary.map((m) => ({ id: m.id, kategori: m.category, beskrivelse: trim(m.description ?? "", 220), stikkord: m.tags, produkt_id: m.product_id ?? undefined, personer: m.people_visible || undefined, sist_brukt: m.last_used_at?.slice(0, 10) ?? "aldri", brukt_ganger: m.use_count })), null, 1) : "Mediebanken er tom."}
 
 TIDLIGERE INNLEGG – fra appen og fra Facebook-siden, nyeste først (${publishedCount} publisert)
 ${history.length ? JSON.stringify(history, null, 1) : "Ingen tidligere innlegg."}

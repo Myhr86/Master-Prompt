@@ -21,7 +21,7 @@ run("Database: RLS, godkjenning og publiseringsvern", () => {
     await p?.end();
   });
   beforeEach(async () => {
-    await as(p, { kind: "superuser" }, (c) => c.query("truncate posts, publish_attempts, post_history, products, audit_log, facebook_connections cascade"));
+    await as(p, { kind: "superuser" }, (c) => c.query("truncate posts, publish_attempts, post_history, products, audit_log, facebook_connections, media_assets cascade"));
   });
 
   async function newPost(fields: Record<string, unknown> = {}) {
@@ -250,6 +250,14 @@ run("Database: RLS, godkjenning og publiseringsvern", () => {
     expect(other).toHaveLength(0);
     await expect(as(p, { kind: "anon" }, (c) => c.query("select * from facebook_page_posts"))).rejects.toThrow(/permission denied/);
     await expect(as(p, O(), (c) => c.query("insert into facebook_page_posts (page_id, facebook_post_id, created_time) values ('1','1_2', now())"))).rejects.toThrow(/permission denied/);
+  });
+
+  it("mediebank: eier kan lagre beskrivelse, ugyldig status avvises, fremmede ser ingenting", async () => {
+    const id = await as(p, O(), (c) => c.query("insert into media_assets (storage_path, kind, in_library, analysis_status) values ('uploads/x.jpg','upload', true, 'pending') returning id").then((r) => r.rows[0].id));
+    await as(p, O(), (c) => c.query("update media_assets set description='Verksted', tags='{laser}', category='verksted', analysis_status='done' where id=$1", [id]));
+    await expect(as(p, O(), (c) => c.query("update media_assets set analysis_status='tull' where id=$1", [id]))).rejects.toThrow(/analysis_status_check/);
+    const other = await as(p, { kind: "authenticated", sub: stranger }, (c) => c.query("select * from media_assets").then((r) => r.rows));
+    expect(other).toHaveLength(0);
   });
 
   it("rate limiting slår inn etter grensen", async () => {

@@ -16,6 +16,8 @@ export interface StructuredCallInput<T extends z.ZodType> {
   model?: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   maxTokens?: number;
+  /** Valgfrie bilder (base64) som sendes før teksten, f.eks. for bildebeskrivelse. */
+  images?: { mediaType: "image/jpeg" | "image/png" | "image/webp"; base64: string }[];
 }
 
 export interface StructuredCallOutput<T> {
@@ -47,7 +49,17 @@ export const callClaudeStructured: StructuredCaller = async (input) => {
       fallbacks: "default",
       output_config: { effort: input.effort ?? "high", format: betaZodOutputFormat(input.schema) },
       system: [{ type: "text", text: input.system, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: input.user }],
+      messages: [
+        {
+          role: "user",
+          content: input.images?.length
+            ? [
+                ...input.images.map((img) => ({ type: "image" as const, source: { type: "base64" as const, media_type: img.mediaType, data: img.base64 } })),
+                { type: "text" as const, text: input.user },
+              ]
+            : input.user,
+        },
+      ],
     });
 
     if (response.stop_reason === "refusal") {

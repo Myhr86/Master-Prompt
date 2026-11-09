@@ -10,6 +10,7 @@ import type { GeneratedPost } from "./schemas";
 export interface PostcheckContext {
   products: Product[];
   productImageIds: Set<string>;
+  mediaIds?: Set<string>;
   website: string;
   recentTexts: string[];
   fallbackTimes: string[]; // ISO, én per innlegg
@@ -116,6 +117,7 @@ export function postcheck(post: GeneratedPost, index: number, ctx: PostcheckCont
     link_url: link,
     hashtags: tags.slice(0, 8),
     suggested_image_id: post.suggested_image_id && ctx.productImageIds.has(post.suggested_image_id) ? post.suggested_image_id : null,
+    suggested_media_id: post.suggested_media_id && ctx.mediaIds?.has(post.suggested_media_id) ? post.suggested_media_id : null,
     warnings: [...new Set(warnings)],
     scheduled_at: when.toISOString(),
   };

@@ -13,7 +13,8 @@ const MAIN = [
   { href: "/generer", label: "Lag innlegg", icon: Icon.sparkles },
   { href: "/kalender", label: "Kalender", icon: Icon.calendar },
   { href: "/produkter", label: "Produkter", icon: Icon.box },
-  { href: "/bilder", label: "Bildeverksted", icon: Icon.image },
+  { href: "/mediebank", label: "Mediebank", icon: Icon.image },
+  { href: "/bilder", label: "Bildeverksted", icon: Icon.brush },
   { href: "/analyse", label: "Analyse", icon: Icon.chart },
   { href: "/innstillinger", label: "Innstillinger", icon: Icon.settings },
 ];

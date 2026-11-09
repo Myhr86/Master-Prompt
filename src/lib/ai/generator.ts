@@ -32,6 +32,7 @@ export async function generatePosts(ctx: GenerationContext, call: StructuredCall
     const c = postcheck(p, i, {
       products: ctx.products,
       productImageIds,
+      mediaIds: new Set((ctx.mediaLibrary ?? []).map((m) => m.id)),
       website: ctx.settings.website,
       recentTexts: ctx.recentPosts.map((r) => r.content),
       fallbackTimes: ctx.slots.map((s) => s.iso),

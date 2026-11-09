@@ -39,6 +39,7 @@ export const GeneratedPostSchema = z.object({
   hashtags: z.array(z.string()).describe("3–6 relevante emneknagger"),
   image_suggestion: z.string().describe("Forslag til bilde. Foretrekk ekte produktbilder."),
   suggested_image_id: z.string().nullable().describe("ID til et eksisterende produktbilde, eller null"),
+  suggested_media_id: z.string().nullable().describe("ID til et bilde fra mediebanken (egne bilder fra verkstedet), eller null"),
   recommended_publish_at: z.string().describe("Anbefalt tidspunkt, ISO 8601 med tidssone"),
   rationale: z.string().describe("Kort forklaring på hvorfor innlegget kan fungere"),
   variants: z

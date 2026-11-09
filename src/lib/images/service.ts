@@ -9,7 +9,10 @@ import { IMAGE_FORMATS, type ImageFormat } from "./formats";
 import { UserFacingError } from "../action-result";
 import type { MediaAsset, Post } from "../types";
 
-type NewAsset = Omit<MediaAsset, "id" | "created_at" | "storage_path" | "width" | "height"> & { data: Buffer; mime: string; folder: Parameters<typeof uploadMedia>[2] };
+type NewAsset = Pick<
+  MediaAsset,
+  "kind" | "is_ai_generated" | "contains_real_product_photo" | "prompt" | "provider" | "format" | "product_id" | "source_asset_id" | "source_product_image_id"
+> & { data: Buffer; mime: string; folder: Parameters<typeof uploadMedia>[2] };
 
 export async function saveAsset(a: NewAsset): Promise<MediaAsset> {
   const meta = await sharp(a.data).metadata();

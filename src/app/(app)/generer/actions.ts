@@ -12,6 +12,7 @@ import { loadGenerationContext } from "@/lib/ai/context";
 import { generatePosts } from "@/lib/ai/generator";
 import { callClaudeStructured } from "@/lib/ai/claude";
 import { POST_TYPES } from "@/lib/ai/schemas";
+import { markMediaUsed } from "@/lib/media/usage";
 
 
 /** Felles: hent kontekst, la Claude skrive, kontroller og lagre som PENDING_APPROVAL. */
@@ -19,6 +20,13 @@ async function generateAndSave(ctxInput: Parameters<typeof loadGenerationContext
   const ctx = await loadGenerationContext(ctxInput);
   const out = await generatePosts(ctx, callClaudeStructured);
   const imagePaths = new Map<string, string>();
+  const mediaPaths = new Map<string, string>();
+  if (out.posts.some((p) => p.suggested_media_id)) {
+    const supabase = await createClient();
+    const ids = out.posts.map((p) => p.suggested_media_id).filter(Boolean) as string[];
+    const { data } = await supabase.from("media_assets").select("id, storage_path").in("id", ids);
+    for (const r of data ?? []) mediaPaths.set(r.id, r.storage_path);
+  }
   if (out.posts.some((p) => p.suggested_image_id)) {
     const supabase = await createClient();
     const ids = out.posts.map((p) => p.suggested_image_id).filter(Boolean) as string[];
@@ -34,7 +42,9 @@ async function generateAndSave(ctxInput: Parameters<typeof loadGenerationContext
     hashtags: p.hashtags,
     link_url: p.link_url,
     product_id: p.product_id,
-    image_path: p.suggested_image_id ? imagePaths.get(p.suggested_image_id) ?? null : null,
+    // Mediebank-bilde foretrekkes, ellers produktbilde fra nettbutikken.
+    image_path: (p.suggested_media_id && mediaPaths.get(p.suggested_media_id)) || (p.suggested_image_id ? imagePaths.get(p.suggested_image_id) ?? null : null),
+    image_asset_id: p.suggested_media_id && mediaPaths.has(p.suggested_media_id) ? p.suggested_media_id : null,
     post_type: p.post_type,
     image_suggestion: p.image_suggestion,
     rationale: p.rationale,
@@ -50,6 +60,7 @@ async function generateAndSave(ctxInput: Parameters<typeof loadGenerationContext
   }));
   const { error } = await supabase.from("posts").insert(rows);
   if (error) throw error;
+  await markMediaUsed(supabase, rows.map((r) => r.image_asset_id).filter((x): x is string => Boolean(x)));
   await supabase.from("ai_generations").insert({
     kind: "posts",
     model: out.model,

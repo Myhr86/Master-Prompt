@@ -69,6 +69,7 @@ const gen = (over: Partial<GeneratedPost> = {}): GeneratedPost => ({
   hashtags: ["#personligegaver", "myhrtreogdesign"],
   image_suggestion: "Ekte produktbilde",
   suggested_image_id: "22222222-2222-4222-8222-222222222222",
+  suggested_media_id: null,
   recommended_publish_at: "2026-11-11T18:00:00.000Z",
   rationale: "Fordi …",
   variants: [],
@@ -131,6 +132,17 @@ describe("AI-innholdsprodusent (test 3–4)", () => {
     const call = vi.fn(async (_input: Parameters<StructuredCaller>[0]) => ({ data: { posts: [gen({ body: text })], planning_notes: "" }, model: "claude-opus-5-5", usage: {} })); // eslint-disable-line @typescript-eslint/no-unused-vars
     const out = await generatePosts(ctx({ slots: [ctx().slots[0]!], recentPosts: [{ title: "", content: text, post_type: null, status: "PUBLISHED", published_at: "2026-11-02", created_at: "2026-11-02", source: "facebook" }] }), call as unknown as StructuredCaller);
     expect(out.posts[0]!.warnings.join(" ")).toMatch(/ligner/);
+  });
+
+  it("mediebanken sendes som tekst, og bare gyldige bilde-ID-er beholdes", () => {
+    const media = [{ id: "44444444-4444-4444-8444-444444444444", category: "gravering", description: "Laser graverer eikefjøl", tags: ["laser"], product_id: null, people_visible: false, last_used_at: null, use_count: 0 }];
+    const p = buildGenerationPrompt(ctx({ mediaLibrary: media }));
+    expect(p).toContain("MEDIEBANK");
+    expect(p).toContain("Laser graverer eikefjøl");
+    expect(p).toContain('"sist_brukt": "aldri"');
+    const ok = pc(gen({ suggested_media_id: "44444444-4444-4444-8444-444444444444" }), { mediaIds: new Set(["44444444-4444-4444-8444-444444444444"]) });
+    expect(ok.suggested_media_id).toBe("44444444-4444-4444-8444-444444444444");
+    expect(pc(gen({ suggested_media_id: "55555555-5555-4555-8555-555555555555" }), { mediaIds: new Set() }).suggested_media_id).toBeNull();
   });
 
   it("tidligere innlegg sendes med for å unngå gjentakelser", () => {

@@ -20,6 +20,7 @@ import { postcheck } from "@/lib/ai/postcheck";
 import { osloParts, osloToUtc } from "@/lib/dates";
 import { createImageForPost } from "@/lib/images/service";
 import type { Post } from "@/lib/types";
+import { markMediaUsed } from "@/lib/media/usage";
 
 function refresh(id?: string) {
   revalidatePath("/", "layout");
@@ -244,6 +245,7 @@ export async function regenerateText(id: string, instructions: string): Promise<
         hashtags: result.hashtags,
         image_suggestion: "",
         suggested_image_id: null,
+        suggested_media_id: null,
         recommended_publish_at: post.scheduled_at ?? new Date(Date.now() + 864e5).toISOString(),
         rationale: result.rationale,
         variants: [],
@@ -308,6 +310,7 @@ export async function setPostImage(id: string, source: { kind: "asset" | "produc
     }
     const { error } = await supabase.from("posts").update({ image_path, image_asset_id }).eq("id", id);
     if (error) throw error;
+    if (image_asset_id) await markMediaUsed(supabase, [image_asset_id]);
     await audit("post.image_changed", { actorId: owner.id, entity: "post", entityId: id });
     refresh(id);
     return { ok: true, message: "Bildet er oppdatert. Hvis innlegget var godkjent, må det godkjennes på nytt." };

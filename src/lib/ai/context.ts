@@ -16,7 +16,7 @@ export async function loadGenerationContext(input: {
   skipBusyDays?: boolean;
 }): Promise<GenerationContext> {
   const supabase = await createClient();
-  const [settings, products, imagesRes, recentRes, fbRes] = await Promise.all([
+  const [settings, products, imagesRes, recentRes, fbRes, mediaRes] = await Promise.all([
     getSettings(),
     getProducts({ activeOnly: true }),
     supabase.from("product_images").select("id, product_id, image_type, alt_text"),
@@ -28,6 +28,14 @@ export async function loadGenerationContext(input: {
       .limit(40),
     // Innlegg som allerede ligger på Facebook-siden (også publisert utenom appen).
     supabase.from("facebook_page_posts").select("facebook_post_id, message, created_time, has_image").order("created_time", { ascending: false }).limit(60),
+    // Mediebanken: kun tekstbeskrivelser av ferdig analyserte bilder (billig).
+    supabase
+      .from("media_assets")
+      .select("id, category, description, tags, product_id, people_visible, last_used_at, use_count")
+      .eq("in_library", true)
+      .eq("analysis_status", "done")
+      .order("last_used_at", { ascending: true, nullsFirst: true })
+      .limit(150),
   ]);
   const appPosts = (recentRes.data ?? []) as (GenerationContext["recentPosts"][number] & { facebook_post_id: string | null })[];
   const appFbIds = new Set(appPosts.map((p) => p.facebook_post_id).filter(Boolean));
@@ -69,6 +77,7 @@ export async function loadGenerationContext(input: {
     products,
     productImages: (imagesRes.data ?? []) as GenerationContext["productImages"],
     recentPosts,
+    mediaLibrary: mediaRes.error ? [] : ((mediaRes.data ?? []) as NonNullable<GenerationContext["mediaLibrary"]>),
     slots,
     seasonalEvents: seasonal.map((s) => ({ name: s.name, date: s.date, angle: s.angle })),
     focus: { postTypes: input.postTypes, productIds: input.productIds, instructions: input.instructions },

@@ -89,6 +89,16 @@ export interface MediaAsset {
   product_id: string | null;
   source_asset_id: string | null;
   source_product_image_id: string | null;
+  in_library: boolean;
+  description: string | null;
+  tags: string[];
+  category: string | null;
+  people_visible: boolean | null;
+  analysis_status: "none" | "pending" | "done" | "failed";
+  analysis_error: string | null;
+  analyzed_at: string | null;
+  last_used_at: string | null;
+  use_count: number;
   created_at: string;
 }
 

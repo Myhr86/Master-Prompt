@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { resizeForUpload } from "@/lib/client/resize-image";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, Field, Input, Notice, Select, Textarea, cx } from "@/components/ui";
 import type { ActionResult } from "@/lib/action-result";
@@ -63,11 +64,31 @@ export function Studio({
   const [theme, setTheme] = useState("light");
   const [regenText, setRegenText] = useState("");
 
-  const [uploadState, uploadAction, uploading] = useActionState(async (prev: ActionResult | undefined, fd: FormData) => {
-    const r = await uploadAssets(prev, fd);
-    if (r.ok) router.refresh();
-    return r;
-  }, undefined);
+  const [uploadState, setUploadState] = useState<ActionResult | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
+  const onUpload = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const files = new FormData(e.currentTarget).getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+    if (!files.length) return setUploadState({ ok: false, error: "Velg minst ett bilde." });
+    setUploading(true);
+    let ok = 0;
+    const errs: string[] = [];
+    for (const f of files.slice(0, 20)) {
+      try {
+        const fd = new FormData();
+        fd.append("files", await resizeForUpload(f));
+        const r = await uploadAssets(undefined, fd);
+        if (r.ok) ok++;
+        else errs.push(r.error);
+      } catch (err) {
+        errs.push((err as Error).message);
+      }
+    }
+    setUploading(false);
+    setUploadState(errs.length ? { ok: false, error: `${ok} lastet opp. Feil: ${errs.slice(0, 3).join(" · ")}` } : { ok: true, message: `${ok} bilde(r) lastet opp.` });
+    (e.target as HTMLFormElement).reset();
+    router.refresh();
+  };
 
   const sel = assets.find((a) => a.id === selected) ?? null;
   const backgroundCandidates = assets.filter((a) => !a.realProduct && a.kind !== "text_graphic");
@@ -207,10 +228,10 @@ export function Studio({
 
         {tab === "upload" && (
           <Card className="p-5">
-            <form action={uploadAction} className="flex flex-col gap-4">
+            <form onSubmit={onUpload} className="flex flex-col gap-4">
               {uploadState && <Notice tone={uploadState.ok ? "success" : "error"}>{uploadState.ok ? uploadState.message : uploadState.error}</Notice>}
-              <Field label="Bilder" htmlFor="up" hint="JPEG, PNG eller WebP, maks 15 MB. Metadata fjernes automatisk. Produktbilder lastes opp under hvert produkt.">
-                <input id="up" name="files" type="file" multiple accept="image/jpeg,image/png,image/webp" className="text-sm file:mr-3 file:rounded-full file:border-0 file:bg-wood-100 file:px-4 file:py-2" />
+              <Field label="Bilder" htmlFor="up" hint="Bildene gjøres mindre automatisk, og metadata fjernes. Produktbilder lastes opp under hvert produkt, og egne verkstedbilder i Mediebanken.">
+                <input id="up" name="files" type="file" multiple accept="image/*" className="text-sm file:mr-3 file:rounded-full file:border-0 file:bg-wood-100 file:px-4 file:py-2" />
               </Field>
               <Button type="submit" disabled={uploading}>
                 {uploading ? "Laster opp …" : "Last opp"}

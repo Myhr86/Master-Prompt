@@ -40,6 +40,13 @@ AI-en skriver bare om produkter som ligger i produktbiblioteket, og bruker bare 
 4. Hent produktbildene fra nettbutikken med **Hent bilder for produkter uten bilder** (eller **Hent bilder fra nettbutikken** inne på hvert produkt). Du kan også laste opp egne bilder. Velg et hovedbilde.
 5. Har nettbutikken fått ny pris eller tekst, ser du en gul boks med **Endringer oppdaget**. Trykk **Godta** eller **Behold nåværende**.
 
+## 3b. Mediebank – egne bilder
+
+1. Gå til **Mer → Mediebank** og trykk **Velg bilder**. Du kan velge mange bilder fra mobilen om gangen, for eksempel fra verkstedet, når du graverer, eller av produkter i hyllene.
+2. Hold siden åpen mens bildene lastes opp og Claude beskriver dem. Du ser fremdriften underveis.
+3. Trykk på et bilde for å rette beskrivelse, stikkord, kategori eller produkt. Kryss av **Personer er synlige** hvis noen kan kjennes igjen. Slike bilder bør bare brukes når du har samtykke.
+4. Når Claude lager innlegg, velger den passende bilder fra mediebanken og foretrekker bilder som ikke er brukt nylig.
+
 ## 4. Generere innlegg
 
 1. Trykk **Lag** (mobil) eller **Lag innlegg** (PC).

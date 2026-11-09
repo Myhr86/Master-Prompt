@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { resizeForUpload } from "@/lib/client/resize-image";
 import { useRouter } from "next/navigation";
 import { deleteProduct, deleteProductImage, importProductImagesFromStore, setPrimaryImage, uploadProductImage } from "../actions";
 import { Button, Card, Field, Input, Notice, Select } from "@/components/ui";
@@ -13,11 +14,36 @@ export function ProductImages({ productId, images, hasStoreSource }: { productId
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<ActionResult | null>(null);
-  const [state, action, uploading] = useActionState(async (prev: ActionResult | undefined, fd: FormData) => {
-    const r = await uploadProductImage(prev, fd);
-    if (r.ok) router.refresh();
-    return r;
-  }, undefined);
+  const [state, setState] = useState<ActionResult | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
+  // Bildene gjøres mindre i nettleseren og sendes ett og ett (Vercel tar imot maks ca. 4,5 MB per forespørsel).
+  const onUpload = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+    if (!files.length) return setState({ ok: false, error: "Velg minst ett bilde." });
+    setUploading(true);
+    let ok = 0;
+    const errs: string[] = [];
+    for (const f of files.slice(0, 20)) {
+      try {
+        const fd = new FormData();
+        fd.append("product_id", productId);
+        fd.append("image_type", String(form.get("image_type") ?? "product_photo"));
+        fd.append("alt_text", String(form.get("alt_text") ?? ""));
+        fd.append("files", await resizeForUpload(f));
+        const r = await uploadProductImage(undefined, fd);
+        if (r.ok) ok++;
+        else errs.push(r.error);
+      } catch (err) {
+        errs.push((err as Error).message);
+      }
+    }
+    setUploading(false);
+    setState(errs.length ? { ok: false, error: `${ok} lastet opp. Feil: ${errs.slice(0, 3).join(" · ")}` } : { ok: true, message: `${ok} bilde(r) lastet opp.` });
+    (e.target as HTMLFormElement).reset();
+    router.refresh();
+  };
   const run = (fn: () => Promise<ActionResult>, after?: () => void) =>
     start(async () => {
       const r = await fn();
@@ -67,11 +93,11 @@ export function ProductImages({ productId, images, hasStoreSource }: { productId
           <p className="mt-4 text-sm text-ink-mute">Ingen bilder ennå.</p>
         )}
 
-        <form action={action} className="mt-5 flex flex-col gap-3 border-t border-line pt-4">
+        <form onSubmit={onUpload} className="mt-5 flex flex-col gap-3 border-t border-line pt-4">
           <input type="hidden" name="product_id" value={productId} />
           {state && <Notice tone={state.ok ? "success" : "error"}>{state.ok ? state.message : state.error}</Notice>}
-          <Field label="Last opp bilder" htmlFor="files" hint="JPEG, PNG eller WebP, maks 15 MB. Metadata (f.eks. GPS) fjernes automatisk.">
-            <input id="files" name="files" type="file" accept="image/jpeg,image/png,image/webp" multiple className="text-sm file:mr-3 file:rounded-full file:border-0 file:bg-wood-100 file:px-4 file:py-2 file:text-wood-900" />
+          <Field label="Last opp bilder" htmlFor="files" hint="Bildene gjøres mindre automatisk. Metadata (f.eks. GPS) fjernes.">
+            <input id="files" name="files" type="file" accept="image/*" multiple className="text-sm file:mr-3 file:rounded-full file:border-0 file:bg-wood-100 file:px-4 file:py-2 file:text-wood-900" />
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Bildetype" htmlFor="image_type">

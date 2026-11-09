@@ -61,6 +61,15 @@ describe("Claude-integrasjon (test 3)", () => {
     expect(JSON.stringify(req.body)).not.toMatch(/TOKEN_ENCRYPTION_KEY|service-key|EAA/);
   });
 
+  it("sender bilder som bildeblokker før teksten", async () => {
+    mockAnthropic({ text: JSON.stringify({ answer: "Et verksted" }) });
+    const { callClaudeStructured } = await import("@/lib/ai/claude");
+    await callClaudeStructured({ system: "S", user: "Beskriv", schema, images: [{ mediaType: "image/jpeg", base64: "QUJD" }] });
+    const content = (requests[0]!.body.messages as { content: { type: string; source?: { data: string } }[] }[])[0]!.content;
+    expect(content.map((c) => c.type)).toEqual(["image", "text"]);
+    expect(content[0]!.source!.data).toBe("QUJD");
+  });
+
   it("håndterer avslag (refusal) med forståelig melding", async () => {
     mockAnthropic({ stop_reason: "refusal" });
     const { callClaudeStructured } = await import("@/lib/ai/claude");
