@@ -33,6 +33,15 @@ jobs:
           status=$(curl -sS -o response.json -w "%{http_code}" --max-time 300 \
             -H "Authorization: Bearer $CRON_SECRET" "${APP_URL%/}/api/cron/publish")
           echo "HTTP $status"
-          # Vis kun antall og modus – ingen innholdsdata i loggen.
-          python3 -c "import json; d=json.load(open('response.json')); print('modus:', d.get('mode'), '| behandlet:', d.get('processed'))" || true
+          # Viser kun status, modus og antall – eller feilmeldingen (aldri hemmeligheter).
+          python3 - <<'PY' || head -c 500 response.json
+          import json
+          d = json.load(open("response.json"))
+          if "error" in d:
+              print("Feil:", d["error"])
+              if d.get("missing"):
+                  print("Mangler/ugyldig i Vercel:", ", ".join(d["missing"]))
+          else:
+              print("modus:", d.get("mode"), "| behandlet:", d.get("processed"))
+          PY
           test "$status" = "200"

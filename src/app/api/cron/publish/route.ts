@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthorizedCron } from "@/lib/cron";
+import { checkCron } from "@/lib/cron";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { publishPost } from "@/lib/posts/publisher";
 import { supabasePublishStore } from "@/lib/posts/supabase-store";
@@ -18,9 +18,20 @@ export const maxDuration = 300;
  * godkjenning og innholdshash på nytt – det gjør også databasen.
  */
 export async function GET(request: Request) {
-  if (!isAuthorizedCron(request)) return NextResponse.json({ error: "Ikke autorisert" }, { status: 401 });
+  const denied = checkCron(request);
+  if (denied) return denied;
+  try {
+    return await run();
+  } catch (err) {
+    log.error("cron.publish.failed", { error: err });
+    return NextResponse.json({ error: `Publiseringsjobben feilet: ${(err as Error).message ?? "ukjent feil"}` }, { status: 500 });
+  }
+}
+
+async function run() {
   const admin = createAdminClient();
-  const { data: settings } = await admin.from("business_settings").select("test_mode").eq("id", 1).single();
+  const { data: settings, error: settingsError } = await admin.from("business_settings").select("test_mode").eq("id", 1).single();
+  if (settingsError) throw new Error(`Supabase: ${settingsError.message}`);
   const mode = effectivePublishMode(settings?.test_mode ?? true);
   const now = new Date().toISOString();
 

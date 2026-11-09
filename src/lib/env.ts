@@ -63,6 +63,12 @@ export function env(): ServerEnv {
   return cached;
 }
 
+/** Navnene (aldri verdiene) på miljøvariabler som mangler eller er ugyldige. */
+export function configProblems(): string[] {
+  const parsed = schema.safeParse(process.env);
+  return parsed.success ? [] : [...new Set(parsed.error.issues.map((i) => i.path.join(".")))];
+}
+
 export function integrations() {
   const e = env();
   return {
