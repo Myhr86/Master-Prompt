@@ -64,7 +64,7 @@ Reglene håndheves i **tre uavhengige lag**:
    - Publiserte innlegg kan ikke endres eller slettes.
 3. **Row Level Security:** bare brukere i `public.users` (eiere) får tilgang. Facebook-tokens kan ikke leses av noen innlogget bruker, bare av service-rollen på serveren.
 
-Den planlagte publiseringen (Vercel Cron, hvert 10. minutt) plukker bare opp innlegg som eieren selv har **godkjent og planlagt** (`SCHEDULED`), og alle kontrollene kjøres på nytt. Det finnes ingen kodevei der AI-innhold publiseres uten godkjenning.
+Den planlagte publiseringen (GitHub Actions hvert 10. minutt, med daglig Vercel Cron som reserve) plukker bare opp innlegg som eieren selv har **godkjent og planlagt** (`SCHEDULED`), og alle kontrollene kjøres på nytt. Det finnes ingen kodevei der AI-innhold publiseres uten godkjenning.
 
 ## 3. Installasjon lokalt
 
@@ -155,11 +155,15 @@ Teknisk fungerer det slik: OAuth-`state` lagres i en kryptert httpOnly-informasj
 1. Importer repoet i Vercel. Rammeverket oppdages automatisk.
 2. Legg inn **alle** variablene fra `.env.example` under *Settings → Environment Variables* (Production). `APP_URL` skal være den endelige HTTPS-adressen.
 3. Behold `PUBLISH_MODE=simulated` til alt er testet. Da kan ingenting publiseres.
-4. Deploy. `vercel.json` setter opp to cron-jobber:
-   - `/api/cron/publish` hvert 10. minutt publiserer godkjente og planlagte innlegg.
-   - `/api/cron/insights` én gang i døgnet henter statistikk.
+4. Deploy. `vercel.json` setter opp to daglige cron-jobber (tillatt på Hobby):
+   - `/api/cron/publish` daglig kl. 06:07 UTC er reserve for planlagt publisering.
+   - `/api/cron/insights` daglig kl. 04:17 UTC henter statistikk.
 
-   Vercel sender `Authorization: Bearer $CRON_SECRET`, og rutene avviser alt annet. Merk: på Vercel Hobby kan cron bare kjøre én gang per døgn. Bruk Pro for planlagt publisering hvert 10. minutt, eller velg «Publiser nå» manuelt.
+   **Hyppig planlagt publisering** (hvert 10. minutt) gjøres av GitHub Actions (`.github/workflows/scheduled-publish.yml`), siden Vercel Hobby bare tillater daglig cron. Legg inn to *repository secrets* under GitHub → Settings → Secrets and variables → Actions:
+   - `APP_URL`: samme adresse som i Vercel, f.eks. `https://din-app.vercel.app`
+   - `CRON_SECRET`: nøyaktig samme verdi som i Vercel
+
+   Uten disse hoppes jobben over. Med Vercel Pro kan du i stedet sette `"schedule": "*/10 * * * *"` i `vercel.json`. Uansett avviser endepunktene alt som ikke har riktig `Bearer CRON_SECRET`, og de publiserer bare innlegg du har godkjent og planlagt. GitHub kan forsinke planlagte kjøringer med noen minutter, og «Publiser nå» fungerer alltid umiddelbart.
 5. Opprett eierkontoen (avsnitt 4.6) og logg inn.
 6. Koble til Facebook (avsnitt 8) og gjør en **simulert** publisering.
 7. Når alt fungerer: sett `PUBLISH_MODE=live`, deploy på nytt og slå av *Testmodus* under Innstillinger. **Begge** må være satt for ekte publisering.

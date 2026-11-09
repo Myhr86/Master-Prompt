@@ -68,7 +68,7 @@ Gjennomgått 9. november 2026. Dokumentet beskriver trusselbildet, hvilke tiltak
 - **CSP bruker `'unsafe-inline'` for skript og stil.** Det er nødvendig for Next.js uten nonce-oppsett. Vurder nonce-basert CSP senere.
 - **Supabase-sesjonen ligger i informasjonskapsler som JavaScript kan lese.** Det er standard i `@supabase/ssr`. XSS er begrenset av React-escaping, CSP og fravær av `dangerouslySetInnerHTML`.
 - **Service-rollen kan i prinsippet godkjenne innlegg.** Databasen krever at `approved_by` er en registrert eier, men kan ikke vite hvem som kaller med service-nøkkelen. Applikasjonen bruker aldri service-rollen til godkjenning (kun til tokens, cron og signerte URL-er). Hold `SUPABASE_SERVICE_ROLE_KEY` hemmelig.
-- **Planlagt publisering hvert 10. minutt krever Vercel Pro.** På Hobby kjører cron én gang per døgn.
+- **Planlagt publisering** kjøres av GitHub Actions hvert 10. minutt (Vercel Hobby tillater bare daglig cron). `CRON_SECRET` må derfor også ligge som GitHub repository secret. Bytt den begge steder hvis den lekker.
 - **Rate limiting av AI-kall** (20 per time) beskytter mot kostnadsløp. Sett i tillegg en månedlig utgiftsgrense i Anthropic Console.
 - **Tofaktorautentisering:** slå på MFA i Supabase Auth hvis tilgjengelig i planen, og bruk et langt, unikt passord.
 
