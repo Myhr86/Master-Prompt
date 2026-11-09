@@ -45,6 +45,7 @@ export default async function ChoosePage() {
               `Avslåtte tillatelser: ${diagnosis.declined.join(", ") || "ingen"}`,
               `Valgte sider per tillatelse: ${Object.entries(diagnosis.selectedPagesPerScope).map(([k, v]) => `${k}=${v < 0 ? "alle" : v}`).join(", ") || "ingen oppgitt"}`,
               `Sider i /me/accounts: ${diagnosis.accountsCount ?? "feil"}${diagnosis.accountsError ? ` (${diagnosis.accountsError})` : ""}`,
+              ...diagnosis.selectedPages.map((p) => `Valgt side ${p.id}: ${p.result}`),
             ].join("\n")}
           </pre>
         </Card>

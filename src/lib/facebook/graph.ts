@@ -179,6 +179,7 @@ export class GraphClient {
     selectedPagesPerScope: Record<string, number>;
     accountsCount: number | null;
     accountsError: string | null;
+    selectedPages: { id: string; result: string }[];
   }> {
     const safe = async <T>(fn: () => Promise<T>): Promise<T | null> => {
       try {
@@ -204,6 +205,25 @@ export class GraphClient {
     }
     const selected: Record<string, number> = {};
     for (const g of dbg?.data.granular_scopes ?? []) selected[g.scope] = g.target_ids ? g.target_ids.length : -1;
+    // Prøv å hente hver valgt side direkte, og rapporter resultatet (uten tokens).
+    const ids = [...new Set((dbg?.data.granular_scopes ?? []).flatMap((g) => g.target_ids ?? []))].slice(0, 5);
+    const selectedPages: { id: string; result: string }[] = [];
+    for (const id of ids) {
+      try {
+        const p = await this.request<{ id: string; name?: string; access_token?: string; tasks?: string[] }>("GET", id, { fields: "id,name,access_token,tasks" }, userToken);
+        selectedPages.push({ id, result: `navn=${p.name ?? "?"}, sidetoken=${p.access_token ? "ja" : "NEI"}, rettigheter=${p.tasks?.join("/") ?? "ikke oppgitt"}` });
+      } catch (e) {
+        const ge = e as GraphError;
+        let basic = "";
+        try {
+          const b = await this.request<{ id: string; name?: string }>("GET", id, { fields: "id,name" }, userToken);
+          basic = ` | uten token-felt: navn=${b.name ?? "?"}`;
+        } catch (e2) {
+          basic = ` | uten token-felt: FEIL ${(e2 as Error).message}`;
+        }
+        selectedPages.push({ id, result: `FEIL (kode ${ge.code ?? "?"}${ge.subcode ? `/${ge.subcode}` : ""}): ${ge.message}${basic}` });
+      }
+    }
     return {
       userName: me?.name ?? null,
       tokenType: dbg?.data.type ?? null,
@@ -212,6 +232,7 @@ export class GraphClient {
       selectedPagesPerScope: selected,
       accountsCount,
       accountsError,
+      selectedPages,
     };
   }
 
