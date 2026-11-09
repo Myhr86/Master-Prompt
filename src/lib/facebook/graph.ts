@@ -210,8 +210,8 @@ export class GraphClient {
     const selectedPages: { id: string; result: string }[] = [];
     for (const id of ids) {
       try {
-        const p = await this.request<{ id: string; name?: string; access_token?: string; tasks?: string[] }>("GET", id, { fields: "id,name,access_token,tasks" }, userToken);
-        selectedPages.push({ id, result: `navn=${p.name ?? "?"}, sidetoken=${p.access_token ? "ja" : "NEI"}, rettigheter=${p.tasks?.join("/") ?? "ikke oppgitt"}` });
+        const p = await this.request<{ id: string; name?: string; access_token?: string }>("GET", id, { fields: "id,name,access_token" }, userToken);
+        selectedPages.push({ id, result: `navn=${p.name ?? "?"}, sidetoken=${p.access_token ? "ja" : "NEI"}` });
       } catch (e) {
         const ge = e as GraphError;
         let basic = "";
@@ -238,7 +238,8 @@ export class GraphClient {
 
   /** Henter én side med sidetoken via brukertokenet. */
   async getPage(pageId: string, userToken: string): Promise<FacebookPage> {
-    return this.request<FacebookPage>("GET", pageId, { fields: "id,name,access_token,tasks" }, userToken);
+    // "tasks" finnes bare i /me/accounts, ikke på selve sidenoden.
+    return this.request<FacebookPage>("GET", pageId, { fields: "id,name,access_token" }, userToken);
   }
 
   /**

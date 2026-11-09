@@ -57,12 +57,16 @@ describe("Facebook Login og Graph API", () => {
       const path = url.pathname.replace(/^\/v1\.0\//, "");
       if (path === "me/accounts") return new Response(JSON.stringify({ data: [] }), { status: 200 });
       if (path === "debug_token") return new Response(JSON.stringify({ data: { is_valid: true, scopes: ["pages_show_list"], granular_scopes: [{ scope: "pages_show_list", target_ids: ["61576897727496"] }, { scope: "pages_manage_posts", target_ids: ["61576897727496"] }] } }), { status: 200 });
-      if (path === "61576897727496") return new Response(JSON.stringify({ id: "61576897727496", name: "Myhr Tre og Design", access_token: "EAApage", tasks: ["CREATE_CONTENT"] }), { status: 200 });
+      if (path === "61576897727496") {
+        // Ekte Facebook avviser "tasks" på sidenoden (kode 100).
+        if ((url.searchParams.get("fields") ?? "").includes("tasks")) return new Response(JSON.stringify({ error: { message: "(#100) Tried accessing nonexisting field (tasks)", code: 100 } }), { status: 400 });
+        return new Response(JSON.stringify({ id: "61576897727496", name: "Myhr Tre og Design", access_token: "EAApage" }), { status: 200 });
+      }
       return new Response(JSON.stringify({ error: { message: "ukjent", code: 100 } }), { status: 400 });
     }) as typeof fetch;
     const c = new GraphClient({ appId: "1", appSecret: "s", version: "v1.0", fetchImpl });
     const pages = await c.accessiblePages("EAAuser");
-    expect(pages).toEqual([{ id: "61576897727496", name: "Myhr Tre og Design", access_token: "EAApage", tasks: ["CREATE_CONTENT"] }]);
+    expect(pages).toEqual([{ id: "61576897727496", name: "Myhr Tre og Design", access_token: "EAApage" }]);
   });
 
   it("henter eksisterende innlegg fra siden med sidevisning og grense", async () => {
