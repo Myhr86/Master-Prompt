@@ -123,7 +123,7 @@ export async function textGraphic(opts: TextGraphicOptions): Promise<Buffer> {
     ? await sharp(opts.background).rotate().resize(width, height, { fit: "cover" }).toBuffer()
     : await sharp({ create: { width, height, channels: 3, background: t.bg } }).png().toBuffer();
 
-  const headSize = Math.round(width * (opts.format === "landscape" ? 0.058 : 0.072));
+  const headSize = Math.round(width * (opts.format === "cover" ? 0.04 : opts.format === "landscape" ? 0.058 : 0.072));
   const subSize = Math.round(headSize * 0.42);
   const maxChars = Math.max(10, Math.floor((width * 0.8) / (headSize * 0.52)));
   const head = wrapText(opts.headline, maxChars, 4);
@@ -155,6 +155,6 @@ export function backgroundPrompt(scene: string, format: ImageFormat): string {
     "Skandinavisk, lyst og varmt, naturlige materialer og tretoner, mykt dagslys.",
     "Bildet skal IKKE inneholde noe produkt, ingen fliser, rammer, bilder, tekst, logoer eller mennesker.",
     "La det være en tom, rolig flate i midten der et produkt kan plasseres senere.",
-    format === "landscape" ? "Bredt format." : format === "portrait" ? "Stående format." : "Kvadratisk format.",
+    format === "landscape" || format === "cover" ? "Bredt format." : format === "portrait" ? "Stående format." : "Kvadratisk format.",
   ].join(" ");
 }

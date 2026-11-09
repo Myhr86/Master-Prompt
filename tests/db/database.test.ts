@@ -21,7 +21,7 @@ run("Database: RLS, godkjenning og publiseringsvern", () => {
     await p?.end();
   });
   beforeEach(async () => {
-    await as(p, { kind: "superuser" }, (c) => c.query("truncate posts, publish_attempts, post_history, products, audit_log, facebook_connections, media_assets, contests cascade"));
+    await as(p, { kind: "superuser" }, (c) => c.query("truncate posts, publish_attempts, post_history, products, audit_log, facebook_connections, media_assets, contests, page_reviews cascade"));
   });
 
   async function newPost(fields: Record<string, unknown> = {}) {
@@ -289,6 +289,15 @@ run("Database: RLS, godkjenning og publiseringsvern", () => {
     const b = await as(p, { kind: "superuser" }, (c) => c.query("select allowed_mime_types, file_size_limit from storage.buckets where id='media'").then((r) => r.rows[0]));
     expect(b.allowed_mime_types).toEqual(expect.arrayContaining(["video/mp4", "video/quicktime", "image/jpeg"]));
     expect(Number(b.file_size_limit)).toBeGreaterThanOrEqual(50 * 1024 * 1024);
+  });
+
+  it("sidegjennomganger: kun eier, og coverformat er tillatt i bildeverkstedet", async () => {
+    await as(p, O(), (c) => c.query(`insert into page_reviews (snapshot, result, created_by) values ('{"side":{}}', '{"items":[]}', $1)`, [owner]));
+    const other = await as(p, { kind: "authenticated", sub: stranger }, (c) => c.query("select * from page_reviews").then((r) => r.rows));
+    expect(other).toHaveLength(0);
+    await expect(as(p, { kind: "anon" }, (c) => c.query("select * from page_reviews"))).rejects.toThrow(/permission denied/);
+    await as(p, O(), (c) => c.query("insert into media_assets (storage_path, kind, format) values ('graphics/cover.jpg','text_graphic','cover')"));
+    await expect(as(p, O(), (c) => c.query("insert into media_assets (storage_path, kind, format) values ('x.jpg','upload','banner')"))).rejects.toThrow(/media_assets_format_check/);
   });
 
   it("sporingskoder: standardverdier og validering", async () => {

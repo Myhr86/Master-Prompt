@@ -87,7 +87,7 @@ export interface MediaAsset {
   provider: string | null;
   width: number | null;
   height: number | null;
-  format: "square" | "portrait" | "landscape" | "original" | null;
+  format: "square" | "portrait" | "landscape" | "cover" | "original" | null;
   product_id: string | null;
   source_asset_id: string | null;
   source_product_image_id: string | null;

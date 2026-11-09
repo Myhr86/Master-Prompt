@@ -290,6 +290,67 @@ export class GraphClient {
     return this.request<{ id: string; post_id?: string }>("POST", `${pageId}/photos`, { url: input.imageUrl, caption: input.caption, published: "true" }, pageToken);
   }
 
+  /** Feltene som leses ved gjennomgang av siden. */
+  static readonly PROFILE_FIELDS = [
+    "name",
+    "username",
+    "link",
+    "category",
+    "about",
+    "description",
+    "website",
+    "phone",
+    "emails",
+    "single_line_address",
+    "hours",
+    "followers_count",
+    "fan_count",
+    "verification_status",
+    "overall_star_rating",
+    "rating_count",
+    "cover",
+    "picture.type(large)",
+  ] as const;
+
+  /**
+   * Leser sideinformasjon. Felter Facebook ikke gir tilgang til (eller som
+   * ikke finnes for denne sidetypen) hoppes over og rapporteres – ingen gjetting.
+   */
+  async getPageProfile(pageId: string, pageToken: string): Promise<{ data: Record<string, unknown>; unavailable: string[] }> {
+    try {
+      const data = await this.request<Record<string, unknown>>("GET", pageId, { fields: GraphClient.PROFILE_FIELDS.join(",") }, pageToken);
+      return { data, unavailable: GraphClient.PROFILE_FIELDS.filter((f) => !(f.split(".")[0]! in data)) };
+    } catch (err) {
+      if (err instanceof GraphError && err.needsReconnect) throw err;
+      // Ett eller flere felt avvist: hent ett og ett.
+      const data: Record<string, unknown> = {};
+      const unavailable: string[] = [];
+      for (const f of GraphClient.PROFILE_FIELDS) {
+        try {
+          const r = await this.request<Record<string, unknown>>("GET", pageId, { fields: f }, pageToken);
+          const key = f.split(".")[0]!;
+          if (key in r) data[key] = r[key];
+          else unavailable.push(f);
+        } catch (e) {
+          if (e instanceof GraphError && e.needsReconnect) throw e;
+          unavailable.push(f);
+        }
+      }
+      return { data, unavailable };
+    }
+  }
+
+  /** Handlingsknappen på siden (f.eks. «Handle nå»), hvis Facebook gir tilgang. */
+  async getCallToActions(pageId: string, pageToken: string): Promise<{ type: string; status?: string; web_url?: string }[] | null> {
+    try {
+      const r = await this.request<{ data: { type: string; status?: string; web_url?: string }[] }>("GET", `${pageId}/call_to_actions`, { fields: "type,status,web_url" }, pageToken);
+      return r.data;
+    } catch (err) {
+      if (err instanceof GraphError && err.needsReconnect) throw err;
+      return null;
+    }
+  }
+
   /** Vanlig videoinnlegg: Facebook henter videoen selv fra en (signert) URL. */
   async publishVideo(pageId: string, pageToken: string, input: { fileUrl: string; description: string }): Promise<{ id: string }> {
     return this.request<{ id: string }>("POST", `${pageId}/videos`, { file_url: input.fileUrl, description: input.description, published: "true" }, pageToken, "https://graph-video.facebook.com");

@@ -17,6 +17,7 @@ const MAIN = [
   { href: "/bilder", label: "Bildeverksted", icon: Icon.brush },
   { href: "/konkurranser", label: "Konkurranser", icon: Icon.gift },
   { href: "/analyse", label: "Analyse", icon: Icon.chart },
+  { href: "/sidegjennomgang", label: "Sidegjennomgang", icon: Icon.clipboard },
   { href: "/innstillinger", label: "Innstillinger", icon: Icon.settings },
 ];
 

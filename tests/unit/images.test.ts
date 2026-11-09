@@ -30,7 +30,7 @@ describe("Bildeopplasting (test 5)", () => {
 describe("Bildeverksted", () => {
   it("lager Facebook-formater", async () => {
     const src = await jpegWithExif();
-    for (const [f, w, h] of [["square", 1080, 1080], ["portrait", 1080, 1350], ["landscape", 1200, 630]] as const) {
+    for (const [f, w, h] of [["square", 1080, 1080], ["portrait", 1080, 1350], ["landscape", 1200, 630], ["cover", 1640, 624]] as const) {
       const m = await sharp(await toFormat(src, f)).metadata();
       expect([m.width, m.height]).toEqual([w, h]);
     }

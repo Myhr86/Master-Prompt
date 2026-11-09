@@ -13,9 +13,9 @@ import type { MediaAsset, ProductImage } from "@/lib/types";
 export const metadata: Metadata = { title: "Bildeverksted" };
 export const maxDuration = 300;
 
-export default async function ImagesPage({ searchParams }: { searchParams: Promise<{ innlegg?: string }> }) {
+export default async function ImagesPage({ searchParams }: { searchParams: Promise<{ innlegg?: string; mal?: string }> }) {
   await requireOwnerPage();
-  const { innlegg } = await searchParams;
+  const { innlegg, mal } = await searchParams;
   const postId = innlegg && /^[0-9a-f-]{36}$/i.test(innlegg) ? innlegg : null;
   const supabase = await createClient();
   const [settings, products, imagesRes, assetsRes, postRes] = await Promise.all([
@@ -56,7 +56,16 @@ export default async function ImagesPage({ searchParams }: { searchParams: Promi
           </Notice>
         </div>
       )}
+      {mal === "cover" && (
+        <div className="mb-5">
+          <Notice tone="info">
+            Coverbilde for Facebook-siden: velg et ekte produktbilde som bakgrunn i «Tekstgrafikk», eller lag et miljøbilde i coverformat. Last det ned og legg det inn under Siden → Rediger coverbilde.
+          </Notice>
+        </div>
+      )}
       <Studio
+        initialTab={mal === "cover" ? "text" : undefined}
+        initialFormat={mal === "cover" ? "cover" : undefined}
         aiReady={aiReady}
         postId={postRes.data && !["PUBLISHED", "PUBLISHING"].includes(postRes.data.status) ? postRes.data.id : null}
         formats={Object.entries(IMAGE_FORMATS).map(([k, v]) => ({ id: k, label: v.label }))}

@@ -118,6 +118,10 @@ Under **Analyse** finner du to kort:
 
 Tallene oppdateres hver natt og når du trykker **Hent eksisterende innlegg** under Innstillinger.
 
+## 8c. Sidegjennomgang
+
+Gå til **Mer → Sidegjennomgang** og trykk **Kjør gjennomgang** (ca. ett minutt og 50–70 øre). Du får en oppsummering, tekstforslag du kan kopiere (for eksempel ny intro) og en prioritert liste med forbedringer. Hver forbedring viser hvor på Facebook du gjør endringen. Kryss av **Gjort** etter hvert. Kjør gjerne en ny gjennomgang om en måned for å se fremgangen.
+
 ## 8b. Se hvilke innlegg som gir salg
 
 Lenker til nettbutikken får automatisk en sporingskode, for eksempel `?utm_source=facebook&utm_campaign=gaveide&utm_content=1a2b3c4d`. Under **Analyse → Trafikk og salg i nettbutikken** ser du koden for hvert innlegg. I Shopify går du til **Analyse → Rapporter** og søker etter «UTM». Da ser du besøk og salg per kode.

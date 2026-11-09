@@ -5,6 +5,7 @@ const SIZE: Record<ImageFormat, string> = {
   square: "1024x1024",
   portrait: "1024x1536",
   landscape: "1536x1024",
+  cover: "1536x1024",
 };
 
 export class OpenAIImageProvider implements ImageProvider {

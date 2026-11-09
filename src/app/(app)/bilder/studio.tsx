@@ -23,12 +23,16 @@ type Tab = "scene" | "ai" | "text" | "upload";
 const KIND: Record<string, string> = { upload: "Opplastet", ai_generated: "AI-generert", composite: "Miljøbilde", text_graphic: "Tekstgrafikk" };
 
 export function Studio({
+  initialTab,
+  initialFormat,
   aiReady,
   postId,
   formats,
   productImages,
   assets,
 }: {
+  initialTab?: "scene" | "ai" | "text" | "upload";
+  initialFormat?: string;
   aiReady: boolean;
   postId: string | null;
   formats: { id: string; label: string }[];
@@ -36,7 +40,7 @@ export function Studio({
   assets: Asset[];
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("scene");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "scene");
   const [pending, start] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -55,7 +59,7 @@ export function Studio({
   const [bg, setBg] = useState<"ai" | "plain" | "asset">(aiReady ? "ai" : "plain");
   const [bgAsset, setBgAsset] = useState("");
   const [scene, setScene] = useState("");
-  const [fmt, setFmt] = useState("square");
+  const [fmt, setFmt] = useState(initialFormat ?? "square");
   const [scale, setScale] = useState(0.6);
   const [position, setPosition] = useState("center");
   const [prompt, setPrompt] = useState("");
@@ -269,6 +273,12 @@ export function Studio({
                   Regenerer
                 </Button>
               </div>
+            )}
+            {sel.url && (
+              // Supabase sine signerte lenker støtter ?download= for nedlasting med filnavn.
+              <a href={`${sel.url}&download=myhr-${sel.format ?? "bilde"}.jpg`} className="inline-flex min-h-11 items-center justify-center rounded-full px-4 text-sm font-medium text-ink ring-1 ring-inset ring-line hover:bg-wood-50">
+                Last ned bildet
+              </a>
             )}
             <Button variant="danger" disabled={pending} onClick={() => confirm("Slette bildet?") && run(() => deleteAsset(sel.id), () => setSelected(null))}>
               Slett bilde
