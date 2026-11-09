@@ -39,6 +39,7 @@ const flis: Product = {
   needs_verification: false,
   verification_note: null,
   last_synced_at: null,
+  source_image_urls: [],
   created_at: "",
   updated_at: "",
 };

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { importAllFromStore, importOneFromUrl } from "./actions";
+import { importAllFromStore, importImagesForProductsWithoutImages, importOneFromUrl } from "./actions";
 import { Button, Card, Field, Input, Notice } from "@/components/ui";
 import type { ActionResult } from "@/lib/action-result";
 
@@ -24,6 +24,9 @@ export function ImportPanel({ website }: { website: string }) {
       {result && <div className="mt-3"><Notice tone={result.ok ? "success" : "error"}>{result.ok ? result.message : result.error}</Notice></div>}
       <Button variant="secondary" className="mt-4 w-full" disabled={pending} onClick={() => run(importAllFromStore)}>
         {pending ? "Henter …" : "Hent alle produkter / se etter endringer"}
+      </Button>
+      <Button variant="secondary" className="mt-2 w-full" disabled={pending} onClick={() => run(importImagesForProductsWithoutImages)}>
+        Hent bilder for produkter uten bilder
       </Button>
       <div className="mt-4 flex flex-col gap-2">
         <Field label="…eller én produktside" htmlFor="purl">

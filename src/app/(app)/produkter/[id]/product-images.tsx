@@ -2,14 +2,14 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deleteProduct, deleteProductImage, setPrimaryImage, uploadProductImage } from "../actions";
+import { deleteProduct, deleteProductImage, importProductImagesFromStore, setPrimaryImage, uploadProductImage } from "../actions";
 import { Button, Card, Field, Input, Notice, Select } from "@/components/ui";
 import type { ProductImage } from "@/lib/types";
 import type { ActionResult } from "@/lib/action-result";
 
 const TYPE: Record<string, string> = { product_photo: "Produktfoto", detail: "Detalj", lifestyle: "Miljø", cutout: "Frilagt" };
 
-export function ProductImages({ productId, images }: { productId: string; images: (ProductImage & { url: string | null })[] }) {
+export function ProductImages({ productId, images, hasStoreSource }: { productId: string; images: (ProductImage & { url: string | null })[]; hasStoreSource: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<ActionResult | null>(null);
@@ -34,6 +34,11 @@ export function ProductImages({ productId, images }: { productId: string; images
         <h2 className="text-lg">Produktbilder</h2>
         <p className="mt-1 text-sm text-ink-soft">Ekte bilder brukes som referanse. Produktet endres aldri av AI – i miljøbilder legges dette bildet uendret oppå bakgrunnen.</p>
         {msg && <div className="mt-3"><Notice tone={msg.ok ? "success" : "error"}>{msg.ok ? msg.message : msg.error}</Notice></div>}
+        {hasStoreSource && (
+          <Button variant="secondary" className="mt-3" disabled={pending} onClick={() => run(() => importProductImagesFromStore(productId))}>
+            {pending ? "Henter …" : "Hent bilder fra nettbutikken"}
+          </Button>
+        )}
         {images.length > 0 ? (
           <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {images.map((img) => (
@@ -42,7 +47,7 @@ export function ProductImages({ productId, images }: { productId: string; images
                 {img.url && <img src={img.url} alt={img.alt_text ?? ""} className="aspect-square w-full bg-wood-50 object-cover" />}
                 <div className="flex flex-col gap-1 p-2 text-xs">
                   <span className="text-ink-soft">
-                    {TYPE[img.image_type]} {img.is_primary && "· Hovedbilde"}
+                    {TYPE[img.image_type]} {img.is_primary && "· Hovedbilde"} {img.source_url && "· Fra nettbutikken"}
                   </span>
                   <div className="flex gap-2">
                     {!img.is_primary && (

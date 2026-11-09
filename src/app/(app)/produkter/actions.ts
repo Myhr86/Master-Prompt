@@ -8,7 +8,8 @@ import { enforceRateLimit } from "@/lib/security";
 import { audit } from "@/lib/audit";
 import { toActionError, UserFacingError, type ActionResult } from "@/lib/action-result";
 import { getSettings } from "@/lib/data";
-import { diffProduct, importFromStore, importProductPage, type ImportedProduct } from "@/lib/products/importer";
+import { diffProduct, importFromStore, importProductPage, normalizeImageUrls, type ImportedProduct } from "@/lib/products/importer";
+import { fetchImage } from "@/lib/products/image-fetch";
 import { sanitizeUpload } from "@/lib/images/compose";
 import { removeMedia, uploadMedia } from "@/lib/images/storage";
 import { uuidSchema } from "@/lib/posts/validation";
@@ -175,6 +176,7 @@ async function applyImport(imported: ImportedProduct[], ownerId: string) {
         needs_verification: true,
         verification_note: "Importert fra nettbutikken – kontroller opplysningene og aktiver produktet.",
         last_synced_at: new Date().toISOString(),
+        source_image_urls: p.imageUrls,
       });
       if (!error) created++;
       continue;
@@ -188,7 +190,11 @@ async function applyImport(imported: ImportedProduct[], ownerId: string) {
         .insert({ product_id: match.id, field: c.field, current_value: c.current, proposed_value: c.proposed, status: "pending" });
       if (!error) proposals++;
     }
-    await supabase.from("products").update({ last_synced_at: new Date().toISOString(), external_id: match.external_id ?? p.externalId }).eq("id", match.id);
+    // Bilde-URL-ene er bare en kilde for nedlasting (ikke produktopplysninger) og oppdateres direkte.
+    await supabase
+      .from("products")
+      .update({ last_synced_at: new Date().toISOString(), external_id: match.external_id ?? p.externalId, ...(p.imageUrls.length ? { source_image_urls: p.imageUrls } : {}) })
+      .eq("id", match.id);
   }
   await audit("product.import", { actorId: ownerId, details: { created, proposals } });
   return { created, proposals };
@@ -242,5 +248,109 @@ export async function resolveProposal(id: string, accept: boolean): Promise<Acti
     return { ok: true, message: accept ? "Endringen er tatt i bruk." : "Forslaget er avvist." };
   } catch (err) {
     return toActionError(err, "resolveProposal");
+  }
+}
+
+/**
+ * Henter produktbildene fra nettbutikken for ett produkt. Bildene valideres,
+ * kodes om (metadata fjernes) og lagres i den private bøtta. Allerede hentede
+ * bilder hoppes over.
+ */
+async function fetchImagesForProduct(productId: string, website: string): Promise<{ added: number; failed: string[] }> {
+  const supabase = await createClient();
+  const { data: product, error } = await supabase.from("products").select("id, name, product_url, source_image_urls").eq("id", productId).single();
+  if (error || !product) throw new UserFacingError("Fant ikke produktet.");
+  let urls: string[] = product.source_image_urls ?? [];
+  if (!urls.length && product.product_url) {
+    try {
+      const page = await importProductPage(product.product_url, website);
+      urls = page.imageUrls;
+      if (urls.length) await supabase.from("products").update({ source_image_urls: urls }).eq("id", productId);
+    } catch (e) {
+      throw new UserFacingError(`Kunne ikke lese produktsiden: ${(e as Error).message}`);
+    }
+  }
+  urls = normalizeImageUrls(urls, website);
+  if (!urls.length) throw new UserFacingError("Fant ingen bilder for dette produktet i nettbutikken.");
+
+  const { data: existing } = await supabase.from("product_images").select("source_url").eq("product_id", productId);
+  const have = new Set((existing ?? []).map((e) => e.source_url).filter(Boolean));
+  let first = (existing ?? []).length === 0;
+  let added = 0;
+  const failed: string[] = [];
+  for (const url of urls) {
+    if (have.has(url)) continue;
+    try {
+      const clean = await sanitizeUpload(await fetchImage(url));
+      const path = await uploadMedia(clean.data, clean.mimeType, "products");
+      const { error: insErr } = await supabase
+        .from("product_images")
+        .insert({ product_id: productId, storage_path: path, image_type: "product_photo", alt_text: product.name, is_primary: first, source_url: url });
+      if (insErr) {
+        await removeMedia([path]);
+        throw insErr;
+      }
+      first = false;
+      added++;
+    } catch (e) {
+      failed.push(`${new URL(url).pathname.split("/").pop()}: ${(e as Error).message}`);
+    }
+  }
+  return { added, failed };
+}
+
+export async function importProductImagesFromStore(productId: string): Promise<ActionResult> {
+  try {
+    const owner = await requireOwner();
+    uuidSchema.parse(productId);
+    await enforceRateLimit(`image-import:${owner.id}`, 30, 3600);
+    const settings = await getSettings();
+    const { added, failed } = await fetchImagesForProduct(productId, settings.website);
+    await audit("product.images_imported", { actorId: owner.id, entity: "product", entityId: productId, details: { added, failed: failed.length } });
+    revalidatePath(`/produkter/${productId}`);
+    revalidatePath("/produkter");
+    if (!added && failed.length) return { ok: false, error: `Ingen bilder kunne hentes. ${failed.slice(0, 3).join(" · ")}` };
+    return { ok: true, message: added ? `${added} bilde(r) hentet fra nettbutikken.${failed.length ? ` ${failed.length} feilet.` : ""}` : "Alle bildene fra nettbutikken er allerede hentet." };
+  } catch (err) {
+    return toActionError(err, "importProductImagesFromStore");
+  }
+}
+
+/** Henter bilder for inntil 8 produkter som ikke har bilder ennå (begrenset for å holde seg innenfor tidsgrensen). */
+export async function importImagesForProductsWithoutImages(): Promise<ActionResult> {
+  try {
+    const owner = await requireOwner();
+    await enforceRateLimit(`image-import-bulk:${owner.id}`, 10, 3600);
+    const settings = await getSettings();
+    const supabase = await createClient();
+    const [{ data: products }, { data: imgs }] = await Promise.all([
+      supabase.from("products").select("id").order("name"),
+      supabase.from("product_images").select("product_id"),
+    ]);
+    const withImages = new Set((imgs ?? []).map((i) => i.product_id));
+    const todo = (products ?? []).filter((p) => !withImages.has(p.id));
+    let added = 0;
+    let done = 0;
+    let failedProducts = 0;
+    for (const p of todo.slice(0, 8)) {
+      try {
+        const r = await fetchImagesForProduct(p.id, settings.website);
+        added += r.added;
+        if (!r.added) failedProducts++;
+      } catch {
+        failedProducts++;
+      }
+      done++;
+    }
+    await audit("product.images_imported_bulk", { actorId: owner.id, details: { products: done, added } });
+    revalidatePath("/produkter", "layout");
+    if (!todo.length) return { ok: true, message: "Alle produkter har allerede bilder." };
+    const rest = todo.length - done;
+    return {
+      ok: true,
+      message: `Hentet ${added} bilde(r) for ${done - failedProducts} av ${done} produkter.${failedProducts ? ` ${failedProducts} produkt(er) uten bilder i nettbutikken eller med feil.` : ""}${rest > 0 ? ` ${rest} gjenstår – trykk igjen for å fortsette.` : ""}`,
+    };
+  } catch (err) {
+    return toActionError(err, "importImagesForProductsWithoutImages");
   }
 }

@@ -42,7 +42,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <h2 className="mb-4 text-lg">Produktinformasjon</h2>
           <ProductForm product={p} />
         </Card>
-        <ProductImages productId={p.id} images={imgs.map((i) => ({ ...i, url: urls[i.storage_path] ?? null }))} />
+        <ProductImages productId={p.id} images={imgs.map((i) => ({ ...i, url: urls[i.storage_path] ?? null }))} hasStoreSource={Boolean(p.product_url) || (p.source_image_urls?.length ?? 0) > 0} />
       </div>
     </div>
   );

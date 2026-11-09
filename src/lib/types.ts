@@ -59,6 +59,7 @@ export interface Product {
   needs_verification: boolean;
   verification_note: string | null;
   last_synced_at: string | null;
+  source_image_urls: string[];
   created_at: string;
   updated_at: string;
 }
@@ -70,6 +71,7 @@ export interface ProductImage {
   image_type: "product_photo" | "detail" | "lifestyle" | "cutout";
   is_primary: boolean;
   alt_text: string | null;
+  source_url: string | null;
   created_at: string;
 }
 

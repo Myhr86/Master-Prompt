@@ -77,6 +77,22 @@ async function fetchText(url: string, website: string, fetchImpl: typeof fetch):
   throw new Error("For mange omdirigeringer");
 }
 
+/** Gjør bilde-URL-er absolutte og https, fjerner duplikater. */
+export function normalizeImageUrls(urls: string[], base: string): string[] {
+  const out: string[] = [];
+  for (const raw of urls) {
+    try {
+      const u = new URL(raw.trim(), base);
+      if (u.protocol === "http:") u.protocol = "https:";
+      if (u.protocol !== "https:") continue;
+      if (!out.includes(u.toString())) out.push(u.toString());
+    } catch {
+      /* ugyldig URL ignoreres */
+    }
+  }
+  return out.slice(0, 6);
+}
+
 function toPrice(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(String(v).replace(",", "."));
@@ -98,7 +114,7 @@ export function parseShopify(json: unknown, website: string): ImportedProduct[] 
       price: prices.length ? Math.min(...prices) : null,
       currency: null,
       url: `${origin}/products/${p.handle}`,
-      imageUrls: (p.images ?? []).map((i) => i.src).slice(0, 6),
+      imageUrls: normalizeImageUrls((p.images ?? []).map((i) => i.src), website),
     };
   });
 }
@@ -116,7 +132,7 @@ export function parseWooCommerce(json: unknown): ImportedProduct[] {
       price: price !== null && Number.isFinite(price) ? price : null,
       currency: p.prices?.currency_code ?? null,
       url: p.permalink,
-      imageUrls: (p.images ?? []).map((i) => i.src).slice(0, 6),
+      imageUrls: normalizeImageUrls((p.images ?? []).map((i) => i.src), p.permalink),
     };
   });
 }
@@ -155,7 +171,7 @@ export function parseProductPage(html: string, url: string): ImportedProduct | n
       price,
       currency: (firstOffer?.priceCurrency as string | undefined) ?? null,
       url,
-      imageUrls: images.map((i) => (typeof i === "string" ? i : String((i as { url?: string }).url ?? ""))).filter(Boolean).slice(0, 6),
+      imageUrls: normalizeImageUrls(images.map((i) => (typeof i === "string" ? i : String((i as { url?: string }).url ?? ""))).filter(Boolean), url),
     };
   }
   const title = og("og:title");
@@ -167,7 +183,7 @@ export function parseProductPage(html: string, url: string): ImportedProduct | n
     price: toPrice(og("product:price:amount")),
     currency: og("product:price:currency"),
     url,
-    imageUrls: [og("og:image")].filter((x): x is string => Boolean(x)),
+    imageUrls: normalizeImageUrls([og("og:image")].filter((x): x is string => Boolean(x)), url),
   };
 }
 

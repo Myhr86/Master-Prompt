@@ -36,7 +36,7 @@ AI-en skriver bare om produkter som ligger i produktbiblioteket, og bruker bare 
 1. Gå til **Mer → Produkter**.
 2. Trykk **Hent alle produkter** for å lese produktene fra nettbutikken, eller fyll ut **Nytt produkt** selv.
 3. Importerte produkter er *inaktive* og merket **Må bekreftes**. Åpne hvert produkt, kontroller teksten og prisen, kryss av **Aktiv** og fjern **Må bekreftes**.
-4. Last opp ekte produktbilder under hvert produkt, og velg et hovedbilde.
+4. Hent produktbildene fra nettbutikken med **Hent bilder for produkter uten bilder** (eller **Hent bilder fra nettbutikken** inne på hvert produkt). Du kan også laste opp egne bilder. Velg et hovedbilde.
 5. Har nettbutikken fått ny pris eller tekst, ser du en gul boks med **Endringer oppdaget**. Trykk **Godta** eller **Behold nåværende**.
 
 ## 4. Generere innlegg
