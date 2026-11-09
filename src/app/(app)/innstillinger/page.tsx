@@ -18,6 +18,7 @@ const FB_MESSAGES: Record<string, { tone: "success" | "error" | "warn"; text: st
   "mangler-tillatelser": { tone: "error", text: "Du ga ikke alle nødvendige tillatelser. Systemet trenger pages_show_list, pages_manage_posts og pages_read_engagement." },
   feil: { tone: "error", text: "Noe gikk galt under tilkoblingen. Prøv igjen." },
   utlopt: { tone: "warn", text: "Tilkoblingsøkten utløp. Start på nytt." },
+  "feil-adresse": { tone: "warn", text: "Tilkoblingen må startes fra appens hovedadresse (APP_URL). Du er nå sendt dit – trykk «Koble til Facebook» igjen. Bruk denne adressen (eller et bokmerke til den) fremover." },
   "ikke-konfigurert": { tone: "warn", text: "Meta-appen er ikke konfigurert på serveren (META_APP_ID, META_APP_SECRET, META_GRAPH_API_VERSION)." },
 };
 

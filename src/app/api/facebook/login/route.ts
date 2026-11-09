@@ -11,7 +11,10 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
   } catch {
-    return NextResponse.json({ error: "Ugyldig forespørsel" }, { status: 403 });
+    // Vanligste årsak: appen er åpnet på en annen adresse enn APP_URL.
+    // Facebook sender alltid tilbake til APP_URL, så tilkoblingen må startes der.
+    // Ingen tilstand endres – brukeren sendes bare til riktig adresse med en forklaring.
+    return NextResponse.redirect(new URL("/innstillinger?fb=feil-adresse#facebook", env().APP_URL), 303);
   }
   const owner = await getOwner();
   if (!owner) return NextResponse.redirect(new URL("/login", env().APP_URL), 303);

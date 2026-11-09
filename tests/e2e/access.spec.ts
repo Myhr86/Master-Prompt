@@ -14,6 +14,9 @@ test.describe("Tilgang uten innlogging (test 2)", () => {
     expect((await request.get("/api/cron/publish", { headers: { authorization: "Bearer feil" } })).status()).toBe(401);
     expect((await request.get("/api/cron/insights")).status()).toBe(401);
     expect((await request.post("/api/facebook/login", { headers: { origin: "https://ondsinnet.example" } })).status()).toBe(401);
+    // Selv med feil opprinnelse startes ingen innlogging hos Facebook.
+    const r = await request.post("/api/facebook/login", { headers: { origin: "https://ondsinnet.example" }, maxRedirects: 0 });
+    expect(r.headers()["location"] ?? "").not.toContain("facebook.com");
     expect((await request.get("/api/facebook/callback?code=x&state=y")).status()).toBe(401);
   });
 
