@@ -36,6 +36,7 @@ export function FacebookPanel({
           {status ? (
             <p className="text-sm text-ink-soft">
               Side: <span className="font-medium text-ink">{status.page_name}</span> · Status: {STATUS[status.connection_status] ?? status.connection_status}
+              {status.granted_scopes?.length > 0 && !status.granted_scopes.includes("pages_read_user_content") ? " · Uten tilgang til reaksjoner/kommentarer" : ""}
               {status.token_expires_at ? ` · Token utløper ${new Date(status.token_expires_at).toLocaleDateString("nb-NO")}` : " · Sidetoken uten fast utløpsdato"}
             </p>
           ) : (
@@ -89,7 +90,8 @@ export function FacebookPanel({
         <ul className="ml-4 mt-2 list-disc">
           <li>pages_show_list – vise sidene du administrerer, slik at du kan velge riktig side</li>
           <li>pages_manage_posts – publisere innlegg du har godkjent</li>
-          <li>pages_read_engagement – lese reaksjoner, kommentarer og delinger til analysen</li>
+          <li>pages_read_engagement – lese innleggene på siden og grunnleggende statistikk</li>
+          <li>pages_read_user_content (valgfri) – lese reaksjoner og kommentarer på innleggene, til «beste tidspunkt» og analysen. Kun lesing.</li>
         </ul>
         <p className="mt-2">Systemet ber ikke om tilgang til meldinger, Messenger, personlig profil, annonsekontoer eller betalingsinformasjon. Tokenet lagres kryptert på serveren og vises aldri i nettleseren eller for AI-en.{graphVersion ? ` Graph API-versjon: ${graphVersion}.` : ""}</p>
       </details>

@@ -27,7 +27,7 @@ Gjennomgått 9. november 2026. Dokumentet beskriver trusselbildet, hvilke tiltak
 - Forretningsreglene for godkjenning og publisering håndheves av triggere (se README, avsnitt 2) og er dekket av tester.
 
 **Facebook**
-- Bare `pages_show_list`, `pages_manage_posts` og `pages_read_engagement`.
+- Bare `pages_show_list`, `pages_manage_posts` og `pages_read_engagement`, pluss den valgfrie `pages_read_user_content`, som eieren ba om for reaksjoner og kommentarer. Den gir kun lesing, og kommentartekst lagres ikke.
 - OAuth `state` er tilfeldig (192 bit), lagres i en kryptert `__Host-`-informasjonskapsel (httpOnly, Secure, SameSite=Lax, 10 min) og sammenlignes i konstant tid.
 - Innloggingen starter med POST med Origin-kontroll (CSRF).
 - Tillatelsene kontrolleres etter innlogging, og siden må gi rettigheten `CREATE_CONTENT`.

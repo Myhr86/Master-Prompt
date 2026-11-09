@@ -6,12 +6,12 @@ import { assertAllowedUrl, diffProduct, importFromStore, importProductPage, isLi
 describe("Facebook Login og Graph API", () => {
   const g = new GraphClient({ appId: "123", appSecret: "s3cr3t", version: "v99.0" });
 
-  it("ber kun om de tre minimale tillatelsene", () => {
+  it("ber om de tre nødvendige tillatelsene pluss lesing av reaksjoner/kommentarer – ikke mer", () => {
     const url = new URL(g.loginUrl("state123", "https://app.example/api/facebook/callback"));
     expect(url.origin + url.pathname).toBe("https://www.facebook.com/v99.0/dialog/oauth");
     const scopes = url.searchParams.get("scope")!.split(",");
-    expect(scopes.sort()).toEqual(["pages_manage_posts", "pages_read_engagement", "pages_show_list"]);
-    for (const forbidden of ["pages_messaging", "ads_management", "user_posts", "email", "public_profile", "business_management", "read_page_mailboxes"]) {
+    expect(scopes.sort()).toEqual(["pages_manage_posts", "pages_read_engagement", "pages_read_user_content", "pages_show_list"]);
+    for (const forbidden of ["pages_messaging", "pages_manage_engagement", "ads_management", "user_posts", "email", "public_profile", "business_management", "read_page_mailboxes"]) {
       expect(scopes).not.toContain(forbidden);
     }
     expect(REQUIRED_SCOPES).toHaveLength(3);

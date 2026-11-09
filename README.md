@@ -135,7 +135,9 @@ Kostnad: én ukesgenerering (tre innlegg) bruker typisk noen få tusen input-tok
    - `pages_manage_posts`
    - `pages_read_engagement`
 
-   Systemet ber ikke om tilgang til meldinger, Messenger, personlig profil, annonsekontoer, betaling eller Business Manager-administrasjon.
+   I tillegg ber appen om den **valgfrie** tillatelsen `pages_read_user_content`. Den gir bare lesetilgang til reaksjoner og kommentarer på sidens innlegg, og brukes til «beste tidspunkt» og analysen. Uten den fungerer alt annet, men da får appen bare antall delinger. Legg den til i Meta-appen på samme sted som de tre andre.
+
+   Systemet ber ikke om tilgang til meldinger, Messenger, personlig profil, annonsekontoer, betaling eller Business Manager-administrasjon, og kan ikke svare på eller slette kommentarer.
 4. Hent **App ID** og **App Secret** under *App settings → Basic* og sett `META_APP_ID` og `META_APP_SECRET`.
 5. Sett `META_GRAPH_API_VERSION` til nyeste stabile versjon. Den står i [endringsloggen](https://developers.facebook.com/docs/graph-api/changelog). Versjonen er bevisst ikke hardkodet.
 6. **App Review og tilgangsnivå:**

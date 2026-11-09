@@ -6,6 +6,12 @@ import { createHmac } from "node:crypto";
  * API-versjonen settes i META_GRAPH_API_VERSION (ingen hardkodet versjon).
  */
 export const REQUIRED_SCOPES = ["pages_show_list", "pages_manage_posts", "pages_read_engagement"] as const;
+/**
+ * Valgfrie tillatelser (eieren har bedt om dem). Appen fungerer uten.
+ * pages_read_user_content: lese reaksjoner og kommentarer på sidens innlegg
+ * (kun lesing – ingen svar, sletting eller meldinger).
+ */
+export const OPTIONAL_SCOPES = ["pages_read_user_content"] as const;
 
 export interface GraphConfig {
   appId: string;
@@ -84,10 +90,10 @@ export class GraphClient {
     u.searchParams.set("response_type", "code");
     if (this.cfg.loginConfigId) {
       // Facebook Login for Business: tillatelsene er definert i konfigurasjonen hos Meta
-      // (skal være nøyaktig de tre i REQUIRED_SCOPES). De kontrolleres etter innlogging.
+      // (REQUIRED_SCOPES + eventuelt OPTIONAL_SCOPES). De kontrolleres etter innlogging.
       u.searchParams.set("config_id", this.cfg.loginConfigId);
     } else {
-      u.searchParams.set("scope", REQUIRED_SCOPES.join(","));
+      u.searchParams.set("scope", [...REQUIRED_SCOPES, ...OPTIONAL_SCOPES].join(","));
       u.searchParams.set("auth_type", "rerequest");
     }
     return u.toString();
