@@ -167,6 +167,54 @@ export class GraphClient {
     return { isValid: r.data.is_valid, expiresAt: exp, scopes: r.data.scopes ?? [], granularScopes: r.data.granular_scopes ?? [] };
   }
 
+  /**
+   * Feilsøking når ingen sider finnes. Returnerer kun ufarlige opplysninger
+   * (navn, tillatelser, antall valgte sider) – aldri tokens.
+   */
+  async diagnose(userToken: string): Promise<{
+    userName: string | null;
+    tokenType: string | null;
+    granted: string[];
+    declined: string[];
+    selectedPagesPerScope: Record<string, number>;
+    accountsCount: number | null;
+    accountsError: string | null;
+  }> {
+    const safe = async <T>(fn: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await fn();
+      } catch {
+        return null;
+      }
+    };
+    const me = await safe(() => this.request<{ name?: string }>("GET", "me", { fields: "name" }, userToken));
+    const perms = await safe(() => this.request<{ data: { permission: string; status: string }[] }>("GET", "me/permissions", {}, userToken));
+    const dbg = await safe(() =>
+      this.request<{ data: { type?: string; granular_scopes?: { scope: string; target_ids?: string[] }[] } }>("GET", "debug_token", {
+        input_token: userToken,
+        access_token: `${this.cfg.appId}|${this.cfg.appSecret}`,
+      }),
+    );
+    let accountsCount: number | null = null;
+    let accountsError: string | null = null;
+    try {
+      accountsCount = (await this.listPages(userToken)).length;
+    } catch (e) {
+      accountsError = (e as Error).message;
+    }
+    const selected: Record<string, number> = {};
+    for (const g of dbg?.data.granular_scopes ?? []) selected[g.scope] = g.target_ids ? g.target_ids.length : -1;
+    return {
+      userName: me?.name ?? null,
+      tokenType: dbg?.data.type ?? null,
+      granted: (perms?.data ?? []).filter((x) => x.status === "granted").map((x) => x.permission),
+      declined: (perms?.data ?? []).filter((x) => x.status !== "granted").map((x) => x.permission),
+      selectedPagesPerScope: selected,
+      accountsCount,
+      accountsError,
+    };
+  }
+
   /** Henter én side med sidetoken via brukertokenet. */
   async getPage(pageId: string, userToken: string): Promise<FacebookPage> {
     return this.request<FacebookPage>("GET", pageId, { fields: "id,name,access_token,tasks" }, userToken);

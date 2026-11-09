@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireOwnerPage } from "@/lib/auth";
 import { readOAuthCookie } from "@/lib/facebook/oauth-cookie";
 import { graphClient } from "@/lib/facebook/connection";
+import { env } from "@/lib/env";
 import { Card, Notice, PageHeader } from "@/components/ui";
 import { PagePicker } from "./page-picker";
 import { Button } from "@/components/ui";
@@ -19,9 +20,11 @@ export default async function ChoosePage() {
   try {
     // Kun id og navn sendes til nettleseren – aldri tokens.
     pages = (await graph.accessiblePages(cookie.userToken)).map((p) => ({ id: p.id, name: p.name, canPost: !p.tasks || p.tasks.includes("CREATE_CONTENT") }));
-  } catch {
-    error = "Kunne ikke hente sidene dine fra Facebook.";
+  } catch (e) {
+    error = `Kunne ikke hente sidene dine fra Facebook: ${(e as Error).message}`;
   }
+  const diagnosis = pages.length === 0 ? await graph.diagnose(cookie.userToken) : null;
+  const loginMethod = env().META_LOGIN_CONFIG_ID ? "Facebook Login for Business (konfigurasjons-ID)" : "Facebook Login (scope)";
   return (
     <div className="mx-auto max-w-xl">
       <PageHeader eyebrow="Facebook" title="Velg side" subtitle="Velg Myhr Tre og Design-siden og bekreft tilkoblingen." />
@@ -29,6 +32,23 @@ export default async function ChoosePage() {
       <Card className="p-5">
         {pages.length === 0 && !error ? <NoPages /> : <PagePicker pages={pages} />}
       </Card>
+      {diagnosis && (
+        <Card className="mt-4 p-5">
+          <h2 className="text-lg">Feilsøking</h2>
+          <p className="mt-1 text-xs text-ink-mute">Dette er det Facebook svarte. Ingen tokens vises. Du kan kopiere teksten og sende den videre.</p>
+          <pre className="mt-3 whitespace-pre-wrap break-words rounded-xl bg-wood-50 p-3 text-xs text-ink">
+            {[
+              `Innlogget som: ${diagnosis.userName ?? "ukjent"}`,
+              `Innloggingsmetode: ${loginMethod}`,
+              `Tokentype: ${diagnosis.tokenType ?? "ukjent"}`,
+              `Gitte tillatelser: ${diagnosis.granted.join(", ") || "ingen"}`,
+              `Avslåtte tillatelser: ${diagnosis.declined.join(", ") || "ingen"}`,
+              `Valgte sider per tillatelse: ${Object.entries(diagnosis.selectedPagesPerScope).map(([k, v]) => `${k}=${v < 0 ? "alle" : v}`).join(", ") || "ingen oppgitt"}`,
+              `Sider i /me/accounts: ${diagnosis.accountsCount ?? "feil"}${diagnosis.accountsError ? ` (${diagnosis.accountsError})` : ""}`,
+            ].join("\n")}
+          </pre>
+        </Card>
+      )}
     </div>
   );
 }
