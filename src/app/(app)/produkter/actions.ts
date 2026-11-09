@@ -8,7 +8,7 @@ import { enforceRateLimit } from "@/lib/security";
 import { audit } from "@/lib/audit";
 import { toActionError, UserFacingError, type ActionResult } from "@/lib/action-result";
 import { getSettings } from "@/lib/data";
-import { diffProduct, importFromStore, importProductPage, normalizeImageUrls, type ImportedProduct } from "@/lib/products/importer";
+import { assertAllowedUrl, diffProduct, importFromStore, importProductPage, isListingUrl, normalizeImageUrls, type ImportedProduct } from "@/lib/products/importer";
 import { fetchImage } from "@/lib/products/image-fetch";
 import { sanitizeUpload } from "@/lib/images/compose";
 import { removeMedia, uploadMedia } from "@/lib/images/storage";
@@ -220,7 +220,16 @@ export async function importOneFromUrl(url: string): Promise<ActionResult> {
     const owner = await requireOwner();
     await enforceRateLimit(`import:${owner.id}`, 30, 3600);
     const settings = await getSettings();
-    const p = await importProductPage(z.string().url().parse(url), settings.website);
+    const target = z.string().trim().url("Skriv inn en hel adresse, f.eks. https://myhrtreogdesign.com/products/…").parse(url);
+    assertAllowedUrl(target, settings.website);
+    // Forside eller kolleksjon: hent hele produktlisten i stedet.
+    if (isListingUrl(target)) {
+      const res = await importFromStore(settings.website);
+      const r = await applyImport(res.products, owner.id);
+      revalidatePath("/produkter", "layout");
+      return { ok: true, message: `Adressen var en oversiktsside, så hele produktlisten ble hentet: ${res.products.length} produkter, ${r.created} nye lagt inn til kontroll, ${r.proposals} endringsforslag.` };
+    }
+    const p = await importProductPage(target, settings.website);
     const { created, proposals } = await applyImport([p], owner.id);
     revalidatePath("/produkter", "layout");
     return { ok: true, message: created ? `«${p.name}» er lagt inn som inaktivt produkt til kontroll.` : proposals ? `Fant ${proposals} endring(er) – se forslagene.` : "Produktet er allerede oppdatert." };

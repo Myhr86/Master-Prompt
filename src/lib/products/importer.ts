@@ -212,12 +212,39 @@ export async function importFromStore(website: string, fetchImpl: typeof fetch =
   throw new Error("Fant ingen produktliste automatisk. Legg inn produktlenker én og én i stedet.");
 }
 
+export class NotAProductPageError extends Error {
+  constructor() {
+    super("Adressen er ikke en produktside. Bruk adressen til ett produkt (…/products/…), eller trykk «Hent alle produkter».");
+    this.name = "NotAProductPageError";
+  }
+}
+
+/** Sant for forside, kolleksjoner, «alle produkter» o.l. – sider med mange produkter. */
+export function isListingUrl(url: string): boolean {
+  const path = new URL(url).pathname.replace(/\/+$/, "");
+  return path === "" || /^\/(collections|shop|butikk|produkter|kategori|product-category)(\/|$)/i.test(path);
+}
+
 export async function importProductPage(url: string, website: string, fetchImpl: typeof fetch = fetch): Promise<ImportedProduct> {
   const u = assertAllowedUrl(url, website);
+  // Shopify: produktdata som JSON er mer pålitelig enn å lese HTML.
+  const handle = u.pathname.match(/\/products\/([^/?#.]+)/)?.[1];
+  if (handle) {
+    try {
+      const r = await fetchText(`${u.origin}/products/${handle}.json`, website, fetchImpl);
+      if (r.status === 200 && r.type.includes("json")) {
+        const product = (JSON.parse(r.text) as { product?: unknown }).product;
+        const [p] = product ? parseShopify({ products: [product] }, website) : [];
+        if (p?.name) return p;
+      }
+    } catch {
+      /* faller tilbake til HTML */
+    }
+  }
   const r = await fetchText(u.toString(), website, fetchImpl);
   if (r.status !== 200) throw new Error(`Siden svarte med HTTP ${r.status}`);
   const p = parseProductPage(r.text, u.toString());
-  if (!p || !p.name) throw new Error("Fant ingen produktinformasjon på siden");
+  if (!p || !p.name) throw new NotAProductPageError();
   return p;
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { GraphClient, GraphError, REQUIRED_SCOPES } from "@/lib/facebook/graph";
 import { OpenAIImageProvider } from "@/lib/images/providers/openai";
-import { assertAllowedUrl, diffProduct, importFromStore, importProductPage, parseProductPage, parseShopify, parseWooCommerce, stripHtml } from "@/lib/products/importer";
+import { assertAllowedUrl, diffProduct, importFromStore, importProductPage, isListingUrl, parseProductPage, parseShopify, parseWooCommerce, stripHtml } from "@/lib/products/importer";
 
 describe("Facebook Login og Graph API", () => {
   const g = new GraphClient({ appId: "123", appSecret: "s3cr3t", version: "v99.0" });
@@ -118,6 +118,26 @@ describe("Produktimport (offentlig informasjon, ingen gjetting)", () => {
     const r = await importFromStore("https://myhrtreogdesign.com/", fetchImpl);
     expect(r.platform).toBe("shopify");
     expect(r.products[0]!.name).toBe("Flis");
+  });
+
+  it("leser Shopify-produkter via /products/<handle>.json", async () => {
+    const fetchImpl = (async (u: string) =>
+      u.endsWith("/products/familieflis.json")
+        ? new Response(JSON.stringify({ product: { id: 7, title: "Familieflis", body_html: "<p>20 × 20 cm</p>", handle: "familieflis", variants: [{ price: "499.00" }], images: [{ src: "https://myhrtreogdesign.com/cdn/shop/files/a.jpg" }] } }), { status: 200, headers: { "content-type": "application/json" } })
+        : new Response("", { status: 404 })) as unknown as typeof fetch;
+    const p = await importProductPage("https://myhrtreogdesign.com/products/familieflis?variant=1", "https://myhrtreogdesign.com/", fetchImpl);
+    expect(p).toMatchObject({ name: "Familieflis", price: 499, description: "20 × 20 cm", externalId: "shopify:7" });
+  });
+
+  it("skiller oversiktssider fra produktsider", () => {
+    expect(isListingUrl("https://myhrtreogdesign.com/")).toBe(true);
+    expect(isListingUrl("https://myhrtreogdesign.com/collections/bryllup")).toBe(true);
+    expect(isListingUrl("https://myhrtreogdesign.com/products/familietre")).toBe(false);
+  });
+
+  it("gir forståelig feil for sider uten produktdata", async () => {
+    const fetchImpl = (async () => new Response("<html><body>Om oss</body></html>", { status: 200, headers: { "content-type": "text/html" } })) as unknown as typeof fetch;
+    await expect(importProductPage("https://myhrtreogdesign.com/pages/om-oss", "https://myhrtreogdesign.com/", fetchImpl)).rejects.toThrow(/ikke en produktside/);
   });
 
   it("fjerner HTML og skript", () => {
