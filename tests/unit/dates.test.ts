@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, nextSlots, osloParts, osloToUtc, startOfIsoWeek } from "@/lib/dates";
+import { addDays, nextFreeSlots, nextSlots, osloParts, osloToUtc, startOfIsoWeek } from "@/lib/dates";
 import { easterSunday, nthSunday, seasonalEventsForYear, upcomingSeasonalEvents } from "@/lib/calendar/seasons";
 
 describe("Datoer i Oslo-tid", () => {
@@ -11,6 +11,12 @@ describe("Datoer i Oslo-tid", () => {
     const slots = nextSlots(new Date("2026-11-09T10:00:00Z"), [1, 3, 5], ["19:00"], 3).map((d) => osloParts(d).dateKey);
     expect(slots).toEqual(["2026-11-11", "2026-11-13", "2026-11-16"]);
   });
+  it("hopper over dager som allerede har innlegg", () => {
+    const busy = new Set(["2026-11-11", "2026-11-13"]);
+    const slots = nextFreeSlots(new Date("2026-11-09T10:00:00Z"), [1, 3, 5], "19:00", 1, busy).map((d) => osloParts(d).dateKey);
+    expect(slots).toEqual(["2026-11-16"]);
+  });
+
   it("uke starter på mandag", () => {
     expect(startOfIsoWeek("2026-11-15")).toBe("2026-11-09");
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");

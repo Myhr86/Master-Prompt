@@ -1,12 +1,20 @@
 import "server-only";
 import { createClient } from "../supabase/server";
 import { getProducts, getSettings } from "../data";
-import { nextSlots, osloParts, addDays, WEEKDAYS_NB, osloToUtc } from "../dates";
+import { nextFreeSlots, nextSlots, osloParts, addDays, WEEKDAYS_NB, osloToUtc } from "../dates";
 import { upcomingSeasonalEvents } from "../calendar/seasons";
 import type { GenerationContext } from "./prompts";
 
 /** Bygger konteksten Claude får: innstillinger, produktbibliotek, historikk og tidspunkter. */
-export async function loadGenerationContext(input: { count: number; startDate?: string; postTypes?: string[]; productIds?: string[]; instructions?: string }): Promise<GenerationContext> {
+export async function loadGenerationContext(input: {
+  count: number;
+  startDate?: string;
+  postTypes?: string[];
+  productIds?: string[];
+  instructions?: string;
+  /** Legg forslaget på neste dag som ikke allerede har et innlegg. */
+  skipBusyDays?: boolean;
+}): Promise<GenerationContext> {
   const supabase = await createClient();
   const [settings, products, imagesRes, recentRes, fbRes] = await Promise.all([
     getSettings(),
@@ -35,7 +43,16 @@ export async function loadGenerationContext(input: { count: number; startDate?: 
   const days = settings.preferred_days.length ? settings.preferred_days : [1, 3, 5];
   const times = settings.preferred_times.length ? settings.preferred_times : ["19:00"];
   // Ett innlegg per dag: velg første foretrukne klokkeslett per dag.
-  const slotsRaw = nextSlots(from, days, [times[0]!], input.count);
+  let slotsRaw = nextSlots(from, days, [times[0]!], input.count);
+  if (input.skipBusyDays) {
+    const { data: upcoming } = await supabase
+      .from("posts")
+      .select("scheduled_at")
+      .not("status", "eq", "REJECTED")
+      .gte("scheduled_at", now.toISOString());
+    const busy = new Set((upcoming ?? []).filter((r) => r.scheduled_at).map((r) => osloParts(new Date(r.scheduled_at!)).dateKey));
+    slotsRaw = nextFreeSlots(from, days, times[0]!, input.count, busy);
+  }
   const slots = slotsRaw.map((d) => {
     const p = osloParts(d);
     return {

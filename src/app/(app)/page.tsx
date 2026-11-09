@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Icon } from "@/components/icons";
 import type { Post } from "@/lib/types";
 import { effectivePublishMode } from "@/lib/posts/mode";
+import { QuickSuggest } from "./generer/quick-suggest";
 
 export const metadata: Metadata = { title: "Oversikt" };
 
@@ -73,6 +74,7 @@ export default async function DashboardPage() {
           <ButtonLink href="/generer">
             <Icon.sparkles /> Generer nye innlegg
           </ButtonLink>
+          <QuickSuggest disabled={!integrations().anthropic} variant="inline" />
           <FacebookStatusPill status={fb} metaConfigured={integ.meta} />
           {mode === "simulated" && (
             <Link href="/innstillinger#publisering" className="rounded-full bg-paper/70 px-3 py-1.5 text-sm text-wood-900 ring-1 ring-wood-200">

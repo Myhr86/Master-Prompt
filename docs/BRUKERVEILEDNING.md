@@ -48,6 +48,8 @@ AI-en skriver bare om produkter som ligger i produktbiblioteket, og bruker bare 
 4. Trykk **Generer forslag**. Det kan ta et par minutter.
 5. Når forslagene er klare, trykker du **Gå til godkjenning**.
 
+**Raskt forslag:** trykk **Foreslå ett innlegg for meg** (på Oversikt eller Lag innlegg). Claude velger selv det innlegget som passer best nå, ut fra hva som nylig er publisert, produktene og årstiden. Forslaget legges på neste ledige publiseringsdag, og du sendes rett til det for å se gjennom og godkjenne. Du kan skrive inn et ønske først.
+
 Fra **Kalender** kan du også trykke på en merkedag (✦) for å lage forslag til den anledningen.
 
 ## 5. Redigere innlegg

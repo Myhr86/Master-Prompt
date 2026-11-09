@@ -4,6 +4,7 @@ import { getFacebookStatus, getPagePostStats, getProducts, getSettings } from "@
 import { integrations } from "@/lib/env";
 import { Notice, PageHeader } from "@/components/ui";
 import { GenerateForm } from "./generate-form";
+import { QuickSuggest } from "./quick-suggest";
 import { POST_TYPES, POST_TYPE_LABEL } from "@/lib/ai/schemas";
 import { osloParts, addDays } from "@/lib/dates";
 import { upcomingSeasonalEvents } from "@/lib/calendar/seasons";
@@ -51,6 +52,10 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
           </Notice>
         </div>
       )}
+      <div className="mb-6">
+        <QuickSuggest disabled={!integ.anthropic} />
+      </div>
+      <h2 className="mb-3 text-xl">Eller lag flere innlegg</h2>
       <GenerateForm
         defaultCount={settings.posting_frequency}
         disabled={!integ.anthropic}

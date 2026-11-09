@@ -84,3 +84,14 @@ export function nextSlots(from: Date, days: number[], times: string[], count: nu
   }
   return out;
 }
+
+/**
+ * Som nextSlots, men hopper over dager som allerede har et innlegg
+ * (busyDayKeys = YYYY-MM-DD i Oslo-tid). Faller tilbake til vanlige
+ * tidspunkter hvis det ikke finnes ledige dager innen 60 dager.
+ */
+export function nextFreeSlots(from: Date, days: number[], time: string, count: number, busyDayKeys: Set<string>): Date[] {
+  const candidates = nextSlots(from, days, [time], count + busyDayKeys.size + 30);
+  const free = candidates.filter((d) => !busyDayKeys.has(osloParts(d).dateKey)).slice(0, count);
+  return free.length === count ? free : nextSlots(from, days, [time], count);
+}
