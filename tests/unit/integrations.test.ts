@@ -69,6 +69,37 @@ describe("Facebook Login og Graph API", () => {
     expect(pages).toEqual([{ id: "61576897727496", name: "Myhr Tre og Design", access_token: "EAApage" }]);
   });
 
+  it("faller tilbake når Facebook ikke gir tilgang til kommentarantall", async () => {
+    const seenFields: string[] = [];
+    const fetchImpl = (async (u: URL) => {
+      const fields = new URL(String(u)).searchParams.get("fields") ?? "";
+      seenFields.push(fields);
+      if (fields.includes("comments")) return new Response(JSON.stringify({ error: { message: "(#10) This endpoint requires the 'pages_read_user_content' permission", code: 10 } }), { status: 403 });
+      return new Response(JSON.stringify({ data: [{ id: "1_1", message: "Hei", created_time: "2026-11-01T10:00:00+0000", reactions: { summary: { total_count: 7 } }, shares: { count: 2 } }] }), { status: 200 });
+    }) as typeof fetch;
+    const c = new GraphClient({ appId: "1", appSecret: "s", version: "v1.0", fetchImpl });
+    const posts = await c.listPublishedPosts("123", "t", 10);
+    expect(posts[0]!.reactions!.summary!.total_count).toBe(7);
+    expect(c.engagementCoverage).toBe("uten_kommentarer");
+    expect(seenFields).toHaveLength(2);
+    // Husker nivået: neste kall prøver ikke kommentarer igjen.
+    const eng = await c.getEngagement("1_1", "t");
+    expect(seenFields).toHaveLength(3);
+    expect(seenFields[2]).not.toContain("comments");
+    expect(eng).toEqual({});
+  });
+
+  it("henter innleggene uten engasjement hvis heller ikke reaksjoner er tillatt", async () => {
+    const fetchImpl = (async (u: URL) => {
+      const fields = new URL(String(u)).searchParams.get("fields") ?? "";
+      if (fields.includes("reactions")) return new Response(JSON.stringify({ error: { message: "(#200) Permissions error", code: 200 } }), { status: 403 });
+      return new Response(JSON.stringify({ data: [{ id: "1_1", message: "Hei", created_time: "2026-11-01T10:00:00+0000" }] }), { status: 200 });
+    }) as typeof fetch;
+    const c = new GraphClient({ appId: "1", appSecret: "s", version: "v1.0", fetchImpl });
+    expect((await c.listPublishedPosts("123", "t", 10)).map((p) => p.id)).toEqual(["1_1"]);
+    expect(c.engagementCoverage).toBe("ingen");
+  });
+
   it("henter eksisterende innlegg fra siden med sidevisning og grense", async () => {
     const seen: string[] = [];
     const fetchImpl = (async (u: URL) => {

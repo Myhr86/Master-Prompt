@@ -24,12 +24,13 @@ export async function syncPagePosts(max = 100): Promise<{ ok: boolean; message: 
       return { ok: false, message: "Facebook-tilgangen er utløpt. Koble til på nytt." };
     }
     if (err instanceof GraphError && err.kind === "permission") {
-      return { ok: false, message: "Appen mangler tillatelsen pages_read_engagement hos Facebook." };
+      return { ok: false, message: `Facebook ga ikke tilgang til å lese innleggene: ${err.message}` };
     }
     log.warn("facebook.sync_failed", { error: err });
-    return { ok: false, message: "Kunne ikke hente innlegg fra Facebook." };
+    return { ok: false, message: `Kunne ikke hente innlegg fra Facebook${err instanceof GraphError ? `: ${err.message}` : "."}` };
   }
 
+  const coverage = graph.engagementCoverage;
   const rows = posts.map((p) => ({
     page_id: conn.pageId,
     facebook_post_id: p.id,
@@ -40,7 +41,8 @@ export async function syncPagePosts(max = 100): Promise<{ ok: boolean; message: 
     status_type: p.status_type ?? null,
     imported_at: new Date().toISOString(),
     reactions: p.reactions?.summary?.total_count ?? null,
-    comments: p.comments?.summary?.total_count ?? null,
+    // Uten tilgang til kommentarer lagres null (ukjent), ikke 0.
+    comments: coverage === "alle" ? p.comments?.summary?.total_count ?? null : null,
     shares: p.shares?.count ?? (p.reactions ? 0 : null),
     metrics_updated_at: p.reactions || p.comments ? new Date().toISOString() : null,
   }));
@@ -68,5 +70,7 @@ export async function syncPagePosts(max = 100): Promise<{ ok: boolean; message: 
       throw error;
     }
   }
-  return { ok: true, message: `Hentet ${rows.length} innlegg fra Facebook-siden.`, count: rows.length };
+  const note =
+    coverage === "alle" ? "" : coverage === "uten_kommentarer" ? " Antall kommentarer er ikke tilgjengelig med dagens tillatelser – reaksjoner og delinger brukes." : " Engasjementstall er ikke tilgjengelige med dagens tillatelser.";
+  return { ok: true, message: `Hentet ${rows.length} innlegg fra Facebook-siden.${note}`, count: rows.length };
 }

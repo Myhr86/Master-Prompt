@@ -304,34 +304,72 @@ export class GraphClient {
    * Henter publiserte innlegg på siden (nyeste først), med sidevisning.
    * Krever pages_read_engagement.
    */
-  async listPublishedPosts(pageId: string, pageToken: string, max = 100): Promise<PagePost[]> {
-    const out: PagePost[] = [];
-    let after: string | undefined;
-    while (out.length < max) {
-      // Engasjement hentes i samme kall (ingen ekstra forespørsler per innlegg).
-      const params: Record<string, string> = {
-        fields: "id,message,created_time,permalink_url,full_picture,status_type,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0),shares",
-        limit: String(Math.min(50, max - out.length)),
-      };
-      if (after) params.after = after;
-      const r = await this.request<{ data: PagePost[]; paging?: { cursors?: { after?: string }; next?: string } }>("GET", `${pageId}/published_posts`, params, pageToken);
-      out.push(...r.data);
-      after = r.paging?.cursors?.after;
-      if (!r.paging?.next || !after || r.data.length === 0) break;
+  /**
+   * Feltsett for engasjement, fra mest til minst. Kommentarantall kan kreve
+   * tillatelsen pages_read_user_content (som appen bevisst ikke ber om) –
+   * da faller vi tilbake til feltene tillatelsene faktisk dekker.
+   */
+  static readonly ENGAGEMENT_FIELDSETS = [
+    "reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0),shares",
+    "reactions.summary(total_count).limit(0),shares",
+    "",
+  ];
+  private engagementLevel = 0;
+
+  /** Kjører en forespørsel med beste tilgjengelige engasjementsfelt, og husker hva som virket. */
+  private async withEngagementFallback<T>(run: (fields: string) => Promise<T>): Promise<T> {
+    for (;;) {
+      try {
+        return await run(GraphClient.ENGAGEMENT_FIELDSETS[this.engagementLevel]!);
+      } catch (err) {
+        const last = this.engagementLevel >= GraphClient.ENGAGEMENT_FIELDSETS.length - 1;
+        if (err instanceof GraphError && (err.kind === "permission" || err.code === 100) && !last) {
+          this.engagementLevel++;
+          continue;
+        }
+        throw err;
+      }
     }
-    return out.slice(0, max);
+  }
+
+  /** Hvilke engasjementstall som faktisk kunne hentes (etter siste kall). */
+  get engagementCoverage(): "alle" | "uten_kommentarer" | "ingen" {
+    return (["alle", "uten_kommentarer", "ingen"] as const)[this.engagementLevel]!;
+  }
+
+  /**
+   * Henter publiserte innlegg på siden (nyeste først), med sidevisning.
+   * Engasjement hentes i samme kall når tillatelsene tillater det.
+   */
+  async listPublishedPosts(pageId: string, pageToken: string, max = 100): Promise<PagePost[]> {
+    return this.withEngagementFallback(async (engagement) => {
+      const out: PagePost[] = [];
+      let after: string | undefined;
+      while (out.length < max) {
+        const params: Record<string, string> = {
+          fields: ["id,message,created_time,permalink_url,full_picture,status_type", engagement].filter(Boolean).join(","),
+          limit: String(Math.min(50, max - out.length)),
+        };
+        if (after) params.after = after;
+        const r = await this.request<{ data: PagePost[]; paging?: { cursors?: { after?: string }; next?: string } }>("GET", `${pageId}/published_posts`, params, pageToken);
+        out.push(...r.data);
+        after = r.paging?.cursors?.after;
+        if (!r.paging?.next || !after || r.data.length === 0) break;
+      }
+      return out.slice(0, max);
+    });
   }
 
   async getEngagement(postId: string, pageToken: string): Promise<Record<string, number>> {
-    const r = await this.request<{
-      reactions?: { summary?: { total_count?: number } };
-      comments?: { summary?: { total_count?: number } };
-      shares?: { count?: number };
-    }>("GET", postId, { fields: "reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0),shares" }, pageToken);
+    const r = await this.withEngagementFallback((fields) =>
+      fields
+        ? this.request<{ reactions?: { summary?: { total_count?: number } }; comments?: { summary?: { total_count?: number } }; shares?: { count?: number } }>("GET", postId, { fields }, pageToken)
+        : Promise.resolve({} as { reactions?: { summary?: { total_count?: number } }; comments?: { summary?: { total_count?: number } }; shares?: { count?: number } }),
+    );
     const out: Record<string, number> = {};
     if (r.reactions?.summary?.total_count !== undefined) out.reactions = r.reactions.summary.total_count;
     if (r.comments?.summary?.total_count !== undefined) out.comments = r.comments.summary.total_count;
-    out.shares = r.shares?.count ?? 0;
+    if (r.shares?.count !== undefined || r.reactions) out.shares = r.shares?.count ?? 0;
     return out;
   }
 

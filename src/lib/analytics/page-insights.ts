@@ -18,6 +18,7 @@ export interface PagePostRow {
   post_type: string | null;
 }
 
+// Kommentarer kan mangle (krever ekstra tillatelse) – da brukes reaksjoner + delinger.
 const engagementOf = (p: Pick<PagePostRow, "reactions" | "comments" | "shares">) =>
   p.reactions === null && p.comments === null ? null : (p.reactions ?? 0) + (p.comments ?? 0) + (p.shares ?? 0);
 
