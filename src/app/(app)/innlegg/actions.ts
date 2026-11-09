@@ -21,6 +21,8 @@ import { osloParts, osloToUtc } from "@/lib/dates";
 import { createImageForPost } from "@/lib/images/service";
 import type { Post } from "@/lib/types";
 import { markMediaUsed } from "@/lib/media/usage";
+import { utmFromSettings, withUtm } from "@/lib/posts/utm";
+import { randomUUID } from "node:crypto";
 
 function refresh(id?: string) {
   revalidatePath("/", "layout");
@@ -46,10 +48,13 @@ export async function updatePost(_prev: ActionResult | undefined, formData: Form
       product_id: formData.get("product_id") ?? "",
     });
     const before = await loadOrFail(input.id);
+    const settings = await getSettings();
+    // Lenker til nettbutikken får sporingskode (vises i forhåndsvisningen før godkjenning).
+    const link = withUtm(input.link_url, settings.website, { settings: utmFromSettings(settings), campaign: before.post_type ?? "manuelt", postId: input.id });
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("posts")
-      .update({ title: input.title, content: input.content, hashtags: input.hashtags, link_url: input.link_url, product_id: input.product_id })
+      .update({ title: input.title, content: input.content, hashtags: input.hashtags, link_url: link, product_id: input.product_id })
       .eq("id", input.id)
       .select("status, approved_at")
       .single();
@@ -343,9 +348,18 @@ export async function createManualPost(): Promise<ActionResult<{ id: string }>> 
     const owner = await requireOwner();
     const settings = await getSettings();
     const supabase = await createClient();
+    const id = randomUUID();
     const { data, error } = await supabase
       .from("posts")
-      .insert({ title: "", content: "", hashtags: settings.default_hashtags, link_url: settings.website, status: "DRAFT", generated_by: "owner" })
+      .insert({
+        id,
+        title: "",
+        content: "",
+        hashtags: settings.default_hashtags,
+        link_url: withUtm(settings.website, settings.website, { settings: utmFromSettings(settings), campaign: "manuelt", postId: id }),
+        status: "DRAFT",
+        generated_by: "owner",
+      })
       .select("id")
       .single();
     if (error) throw error;

@@ -260,6 +260,12 @@ run("Database: RLS, godkjenning og publiseringsvern", () => {
     expect(other).toHaveLength(0);
   });
 
+  it("sporingskoder: standardverdier og validering", async () => {
+    const row = await as(p, O(), (c) => c.query("select utm_enabled, utm_source, utm_medium from business_settings").then((r) => r.rows[0]));
+    expect(row).toEqual({ utm_enabled: true, utm_source: "facebook", utm_medium: "social" });
+    await expect(as(p, O(), (c) => c.query("update business_settings set utm_source='ugyldig kilde!'"))).rejects.toThrow(/utm_values_valid/);
+  });
+
   it("rate limiting slår inn etter grensen", async () => {
     const results: boolean[] = [];
     for (let i = 0; i < 4; i++) results.push(await as(p, O(), (c) => c.query("select check_rate_limit('test-key', 3, 60) ok").then((r) => r.rows[0].ok)));

@@ -13,6 +13,7 @@ import { Card, Notice } from "@/components/ui";
 import { StatusBadge } from "@/components/status-badge";
 import { FacebookPreview } from "@/components/facebook-preview";
 import { POST_TYPE_LABEL } from "@/lib/ai/schemas";
+import { readUtm } from "@/lib/posts/utm";
 import { PostWorkspace } from "./post-workspace";
 import type { MediaAsset, ProductImage } from "@/lib/types";
 
@@ -74,6 +75,11 @@ export default async function PostPage({ params, searchParams }: { params: Promi
               <a href={post.link_url} target="_blank" rel="noopener noreferrer" className="break-all text-wood-700 underline">
                 {post.link_url}
               </a>
+            </p>
+          )}
+          {readUtm(post.link_url) && (
+            <p className="text-xs text-ink-mute">
+              Sporingskode i Shopify: <span className="font-mono text-ink">{readUtm(post.link_url)!.content}</span> (kampanje «{readUtm(post.link_url)!.campaign}»)
             </p>
           )}
         </div>

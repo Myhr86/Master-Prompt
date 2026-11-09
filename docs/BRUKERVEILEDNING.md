@@ -93,6 +93,10 @@ Hvis noe går galt, får innlegget status **Feilet** med en forklaring, og du ka
 
 Under **Mer → Analyse** ser du reaksjoner, kommentarer og delinger for publiserte innlegg. Trykk **Be Claude om analyse og forslag** for å få tips om hvilke innlegg som fungerer best. Det krever statistikk for minst tre innlegg. Systemet viser bare tall som faktisk er hentet fra Facebook.
 
+## 8b. Se hvilke innlegg som gir salg
+
+Lenker til nettbutikken får automatisk en sporingskode, for eksempel `?utm_source=facebook&utm_campaign=gaveide&utm_content=1a2b3c4d`. Under **Analyse → Trafikk og salg i nettbutikken** ser du koden for hvert innlegg. I Shopify går du til **Analyse → Rapporter** og søker etter «UTM». Da ser du besøk og salg per kode.
+
 ## 9. Innstillinger
 
 Under **Mer → Innstillinger** kan du endre bedriftsnavn, nettadresse, skrivestil, antall innlegg per uke, publiseringsdager og klokkeslett, ukens temaer, faste emneknagger, prioriterte produkter, sesonger, AI-modell, bildetjeneste og testmodus. Trykk **Lagre innstillinger**.

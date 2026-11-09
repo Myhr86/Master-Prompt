@@ -116,6 +116,25 @@ export function SettingsForm({
         </div>
       </Card>
 
+      <Card className="flex flex-col gap-4 p-5">
+        <h2 className="text-lg">Sporing av trafikk til nettbutikken</h2>
+        <label className="flex items-start gap-3 text-sm">
+          <input type="checkbox" name="utm_enabled" defaultChecked={settings.utm_enabled ?? true} className="mt-0.5 size-4 accent-wood-700" />
+          <span>
+            <span className="font-medium">Legg sporingskode (UTM) på lenker til nettbutikken</span>
+            <span className="block text-ink-soft">Da kan du se i Shopify hvilke innlegg som gir besøk og salg. Gjelder nye og redigerte innlegg.</span>
+          </span>
+        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Kilde (utm_source)" htmlFor="utm_source">
+            <Input id="utm_source" name="utm_source" defaultValue={settings.utm_source ?? "facebook"} maxLength={40} />
+          </Field>
+          <Field label="Medium (utm_medium)" htmlFor="utm_medium">
+            <Input id="utm_medium" name="utm_medium" defaultValue={settings.utm_medium ?? "social"} maxLength={40} />
+          </Field>
+        </div>
+      </Card>
+
       <Card className="flex flex-col gap-3 p-5">
         <h2 className="text-lg">Testmodus</h2>
         <label className="flex items-start gap-3 text-sm">

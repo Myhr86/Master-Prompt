@@ -131,6 +131,10 @@ export interface BusinessSettings {
   ai_model: string;
   image_provider: "openai" | "none";
   test_mode: boolean;
+  /** Finnes etter migrasjon 6 */
+  utm_enabled?: boolean;
+  utm_source?: string;
+  utm_medium?: string;
   updated_at: string;
 }
 

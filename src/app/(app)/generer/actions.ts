@@ -13,6 +13,7 @@ import { generatePosts } from "@/lib/ai/generator";
 import { callClaudeStructured } from "@/lib/ai/claude";
 import { POST_TYPES } from "@/lib/ai/schemas";
 import { markMediaUsed } from "@/lib/media/usage";
+import { utmFromSettings, withUtm } from "@/lib/posts/utm";
 
 
 /** Felles: hent kontekst, la Claude skrive, kontroller og lagre som PENDING_APPROVAL. */
@@ -36,11 +37,16 @@ async function generateAndSave(ctxInput: Parameters<typeof loadGenerationContext
 
   const batchId = randomUUID();
   const supabase = await createClient();
-  const rows = out.posts.map((p) => ({
+  const utm = utmFromSettings(ctx.settings);
+  const rows = out.posts.map((p) => {
+    // ID settes her slik at sporingskoden (utm_content) kan knyttes til innlegget.
+    const id = randomUUID();
+    return {
+    id,
     title: p.title,
     content: p.content,
     hashtags: p.hashtags,
-    link_url: p.link_url,
+    link_url: withUtm(p.link_url, ctx.settings.website, { settings: utm, campaign: p.post_type, postId: id }),
     product_id: p.product_id,
     // Mediebank-bilde foretrekkes, ellers produktbilde fra nettbutikken.
     image_path: (p.suggested_media_id && mediaPaths.get(p.suggested_media_id)) || (p.suggested_image_id ? imagePaths.get(p.suggested_image_id) ?? null : null),
@@ -57,7 +63,8 @@ async function generateAndSave(ctxInput: Parameters<typeof loadGenerationContext
     generated_by: "ai",
     ai_model: out.model,
     generation_batch_id: batchId,
-  }));
+    };
+  });
   const { error } = await supabase.from("posts").insert(rows);
   if (error) throw error;
   await markMediaUsed(supabase, rows.map((r) => r.image_asset_id).filter((x): x is string => Boolean(x)));

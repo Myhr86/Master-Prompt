@@ -25,6 +25,9 @@ const schema = z.object({
   ai_model: z.string().trim().regex(/^claude-[a-z0-9-]+$/, "Ugyldig modell-ID"),
   image_provider: z.enum(["openai", "none"]),
   test_mode: z.boolean(),
+  utm_enabled: z.boolean(),
+  utm_source: z.string().trim().toLowerCase().regex(/^[a-z0-9_-]{1,40}$/, "Kilde (utm_source) kan bare ha små bokstaver, tall, - og _"),
+  utm_medium: z.string().trim().toLowerCase().regex(/^[a-z0-9_-]{1,40}$/, "Medium (utm_medium) kan bare ha små bokstaver, tall, - og _"),
 });
 
 export async function saveSettings(_prev: ActionResult | undefined, fd: FormData): Promise<ActionResult> {
@@ -51,10 +54,18 @@ export async function saveSettings(_prev: ActionResult | undefined, fd: FormData
       ai_model: fd.get("ai_model"),
       image_provider: fd.get("image_provider"),
       test_mode: fd.get("test_mode") === "on",
+      utm_enabled: fd.get("utm_enabled") === "on",
+      utm_source: String(fd.get("utm_source") ?? "facebook") || "facebook",
+      utm_medium: String(fd.get("utm_medium") ?? "social") || "social",
     });
     const supabase = await createClient();
     const { error } = await supabase.from("business_settings").update(data).eq("id", 1);
-    if (error) throw error;
+    if (error) {
+      if (error.code === "PGRST204" || error.code === "42703" || /utm_/.test(error.message)) {
+        return { ok: false, error: "Databasen mangler oppdateringen for sporingskoder. Kjør supabase/migrations/20261109000006_utm_tracking.sql i Supabase → SQL Editor." };
+      }
+      throw error;
+    }
     await audit("settings.updated", { actorId: owner.id, details: { test_mode: data.test_mode, ai_model: data.ai_model, image_provider: data.image_provider } });
     revalidatePath("/", "layout");
     return { ok: true, message: "Innstillingene er lagret." };

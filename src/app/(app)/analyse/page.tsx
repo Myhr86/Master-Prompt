@@ -9,6 +9,7 @@ import { formatShortDateTime } from "@/lib/dates";
 import { Card, EmptyState, Notice, PageHeader } from "@/components/ui";
 import { POST_TYPE_LABEL } from "@/lib/ai/schemas";
 import { AnalyticsActions } from "./analytics-actions";
+import { readUtm } from "@/lib/posts/utm";
 
 export const metadata: Metadata = { title: "Analyse" };
 export const maxDuration = 300;
@@ -18,7 +19,7 @@ export default async function AnalyticsPage() {
   const supabase = await createClient();
   const [fb, { data: posts }, { data: metrics }] = await Promise.all([
     getFacebookStatus(),
-    supabase.from("posts").select("id, title, post_type, published_at, facebook_post_url").eq("status", "PUBLISHED").order("published_at", { ascending: false }).limit(100),
+    supabase.from("posts").select("id, title, post_type, published_at, facebook_post_url, link_url").eq("status", "PUBLISHED").order("published_at", { ascending: false }).limit(100),
     supabase.from("analytics").select("post_id, metric_name, metric_value, recorded_at").order("recorded_at", { ascending: false }).limit(10000),
   ]);
   const latest = latestMetricsByPost(metrics ?? []);
@@ -52,6 +53,7 @@ export default async function AnalyticsPage() {
           </Notice>
         </div>
       )}
+      <TrafficCard posts={(posts ?? []).map((p) => ({ id: p.id, title: p.title, published_at: p.published_at, utm: readUtm(p.link_url) }))} />
       <AnalyticsActions canRefresh={integ.meta && fb?.connection_status === "connected"} canAnalyze={integ.anthropic && withData.length >= 3} />
 
       {withData.length === 0 ? (
@@ -133,5 +135,41 @@ export default async function AnalyticsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function TrafficCard({ posts }: { posts: { id: string; title: string; published_at: string | null; utm: { campaign: string; content: string } | null }[] }) {
+  const tracked = posts.filter((p) => p.utm);
+  return (
+    <Card className="mb-6 p-5">
+      <h2 className="text-lg">Trafikk og salg i nettbutikken</h2>
+      <p className="mt-1 text-sm text-ink-soft">
+        Lenker til nettbutikken får en sporingskode (utm_source=facebook, utm_campaign = innleggstype, utm_content = kode per innlegg). Besøk og salg vises i Shopify – ikke her – slik at tallene kommer rett fra butikken.
+      </p>
+      <details className="mt-3 text-sm">
+        <summary className="cursor-pointer font-medium">Slik finner du tallene i Shopify</summary>
+        <ol className="ml-5 mt-2 list-decimal space-y-1 text-ink-soft">
+          <li>Gå til Shopify-administrasjonen → <span className="font-medium text-ink">Analyse → Rapporter</span>.</li>
+          <li>Søk etter «UTM» (f.eks. økter eller salg etter UTM-kampanje). Navnene kan variere mellom Shopify-versjoner.</li>
+          <li>Filtrer på kilde <span className="font-mono">facebook</span>. Kolonnen <span className="font-mono">utm_content</span> viser koden for hvert innlegg i listen under.</li>
+        </ol>
+      </details>
+      {tracked.length > 0 ? (
+        <ul className="mt-4 divide-y divide-line text-sm">
+          {tracked.slice(0, 15).map((p) => (
+            <li key={p.id} className="flex items-center justify-between gap-3 py-2">
+              <Link href={`/innlegg/${p.id}`} className="min-w-0 truncate hover:underline">
+                {p.title || "Uten tittel"}
+              </Link>
+              <span className="shrink-0 text-xs text-ink-mute">
+                <span className="font-mono text-ink">{p.utm!.content}</span> · {p.utm!.campaign}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-sm text-ink-mute">Ingen publiserte innlegg med sporingskode ennå. Nye innlegg får koden automatisk.</p>
+      )}
+    </Card>
   );
 }
