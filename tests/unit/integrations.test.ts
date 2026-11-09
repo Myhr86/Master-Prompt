@@ -97,7 +97,9 @@ describe("Facebook Login og Graph API", () => {
     }) as typeof fetch;
     const c = new GraphClient({ appId: "1", appSecret: "s", version: "v1.0", fetchImpl });
     expect((await c.listPublishedPosts("123", "t", 10)).map((p) => p.id)).toEqual(["1_1"]);
-    expect(c.engagementCoverage).toBe("ingen");
+    expect(c.engagementCoverage).toBe("kun_delinger");
+    expect(c.engagementErrors.length).toBeGreaterThan(0);
+    expect(c.engagementErrors[0]).toContain("200: (#200) Permissions error");
   });
 
   it("henter eksisterende innlegg fra siden med sidevisning og grense", async () => {

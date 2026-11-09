@@ -310,11 +310,20 @@ export class GraphClient {
    * da faller vi tilbake til feltene tillatelsene faktisk dekker.
    */
   static readonly ENGAGEMENT_FIELDSETS = [
+    // Alle tall, kun totalsummer
     "reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0),shares",
+    // Uten kommentarer (kan kreve pages_read_user_content)
     "reactions.summary(total_count).limit(0),shares",
+    // Alternativ syntaks uten limit(0) (ikke alle API-versjoner godtar den)
+    "reactions.summary(true).limit(1),shares",
+    // Bare delinger
+    "shares",
+    // Ingen engasjement
     "",
   ];
   private engagementLevel = 0;
+  /** Facebooks begrunnelse for hvert avvist feltsett (for feilsøking). */
+  readonly engagementErrors: string[] = [];
 
   /** Kjører en forespørsel med beste tilgjengelige engasjementsfelt, og husker hva som virket. */
   private async withEngagementFallback<T>(run: (fields: string) => Promise<T>): Promise<T> {
@@ -323,7 +332,8 @@ export class GraphClient {
         return await run(GraphClient.ENGAGEMENT_FIELDSETS[this.engagementLevel]!);
       } catch (err) {
         const last = this.engagementLevel >= GraphClient.ENGAGEMENT_FIELDSETS.length - 1;
-        if (err instanceof GraphError && (err.kind === "permission" || err.code === 100) && !last) {
+        if (err instanceof GraphError && (err.kind === "permission" || err.code === 100 || err.code === 12) && !last) {
+          this.engagementErrors.push(`${err.code ?? "?"}: ${err.message}`);
           this.engagementLevel++;
           continue;
         }
@@ -333,8 +343,8 @@ export class GraphClient {
   }
 
   /** Hvilke engasjementstall som faktisk kunne hentes (etter siste kall). */
-  get engagementCoverage(): "alle" | "uten_kommentarer" | "ingen" {
-    return (["alle", "uten_kommentarer", "ingen"] as const)[this.engagementLevel]!;
+  get engagementCoverage(): "alle" | "uten_kommentarer" | "kun_delinger" | "ingen" {
+    return (["alle", "uten_kommentarer", "uten_kommentarer", "kun_delinger", "ingen"] as const)[this.engagementLevel]!;
   }
 
   /**

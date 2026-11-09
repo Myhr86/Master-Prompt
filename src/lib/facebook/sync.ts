@@ -40,11 +40,11 @@ export async function syncPagePosts(max = 100): Promise<{ ok: boolean; message: 
     has_image: Boolean(p.full_picture),
     status_type: p.status_type ?? null,
     imported_at: new Date().toISOString(),
-    reactions: p.reactions?.summary?.total_count ?? null,
+    reactions: coverage === "alle" || coverage === "uten_kommentarer" ? p.reactions?.summary?.total_count ?? null : null,
     // Uten tilgang til kommentarer lagres null (ukjent), ikke 0.
     comments: coverage === "alle" ? p.comments?.summary?.total_count ?? null : null,
-    shares: p.shares?.count ?? (p.reactions ? 0 : null),
-    metrics_updated_at: p.reactions || p.comments ? new Date().toISOString() : null,
+    shares: coverage === "ingen" ? null : p.shares?.count ?? 0,
+    metrics_updated_at: coverage === "ingen" ? null : new Date().toISOString(),
   }));
   if (rows.length) {
     const admin = createAdminClient();
@@ -70,7 +70,15 @@ export async function syncPagePosts(max = 100): Promise<{ ok: boolean; message: 
       throw error;
     }
   }
+  const reason = graph.engagementErrors.length ? ` (Facebook svarte: ${graph.engagementErrors[graph.engagementErrors.length - 1]})` : "";
   const note =
-    coverage === "alle" ? "" : coverage === "uten_kommentarer" ? " Antall kommentarer er ikke tilgjengelig med dagens tillatelser – reaksjoner og delinger brukes." : " Engasjementstall er ikke tilgjengelige med dagens tillatelser.";
+    coverage === "alle"
+      ? ""
+      : coverage === "uten_kommentarer"
+        ? ` Antall kommentarer er ikke tilgjengelig – reaksjoner og delinger brukes.${reason}`
+        : coverage === "kun_delinger"
+          ? ` Bare antall delinger er tilgjengelig.${reason}`
+          : ` Engasjementstall er ikke tilgjengelige.${reason}`;
+  if (graph.engagementErrors.length) log.warn("facebook.engagement_fallback", { coverage, errors: graph.engagementErrors });
   return { ok: true, message: `Hentet ${rows.length} innlegg fra Facebook-siden.${note}`, count: rows.length };
 }

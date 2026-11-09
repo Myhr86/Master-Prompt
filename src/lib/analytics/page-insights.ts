@@ -20,7 +20,7 @@ export interface PagePostRow {
 
 // Kommentarer kan mangle (krever ekstra tillatelse) – da brukes reaksjoner + delinger.
 const engagementOf = (p: Pick<PagePostRow, "reactions" | "comments" | "shares">) =>
-  p.reactions === null && p.comments === null ? null : (p.reactions ?? 0) + (p.comments ?? 0) + (p.shares ?? 0);
+  p.reactions === null && p.comments === null && p.shares === null ? null : (p.reactions ?? 0) + (p.comments ?? 0) + (p.shares ?? 0);
 
 /** Sidens innlegg siste N dager, med innleggstype fra appen der den finnes. */
 export async function loadPagePosts(db: SupabaseClient, days = 180): Promise<PagePostRow[] | null> {
