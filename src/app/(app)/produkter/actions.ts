@@ -32,6 +32,15 @@ const productSchema = z.object({
   verification_note: z.string().trim().max(1000).transform((v) => (v === "" ? null : v)),
 });
 
+/** Gjenkjenner feil som skyldes at migrasjon 3 (produktbilder) ikke er kjørt. */
+function migrationHint(err: { message?: string; code?: string } | null | undefined): UserFacingError | null {
+  const m = err?.message ?? "";
+  if (err?.code === "42703" || err?.code === "PGRST204" || /source_image_urls|source_url/.test(m)) {
+    return new UserFacingError("Databasen mangler siste oppdatering for produktbilder. Kjør SQL-en fra supabase/migrations/20261109000003_product_image_sources.sql i Supabase → SQL Editor, og prøv igjen.");
+  }
+  return null;
+}
+
 function readProduct(fd: FormData) {
   return productSchema.parse({
     name: fd.get("name") ?? "",
@@ -162,6 +171,7 @@ async function applyImport(imported: ImportedProduct[], ownerId: string) {
   const { data: existing } = await supabase.from("products").select("id, name, description, price, product_url, external_id");
   let created = 0;
   let proposals = 0;
+  const errors: string[] = [];
   for (const p of imported) {
     const match = (existing ?? []).find((e) => (e.external_id && e.external_id === p.externalId) || (e.product_url && e.product_url === p.url));
     if (!match) {
@@ -178,7 +188,11 @@ async function applyImport(imported: ImportedProduct[], ownerId: string) {
         last_synced_at: new Date().toISOString(),
         source_image_urls: p.imageUrls,
       });
-      if (!error) created++;
+      if (error) {
+        const hint = migrationHint(error);
+        if (hint) throw hint;
+        errors.push(`${p.name}: ${error.message}`);
+      } else created++;
       continue;
     }
     const changes = diffProduct({ name: match.name, description: match.description, price: match.price === null ? null : Number(match.price), product_url: match.product_url }, p);
@@ -191,12 +205,18 @@ async function applyImport(imported: ImportedProduct[], ownerId: string) {
       if (!error) proposals++;
     }
     // Bilde-URL-ene er bare en kilde for nedlasting (ikke produktopplysninger) og oppdateres direkte.
-    await supabase
+    const { error: updErr } = await supabase
       .from("products")
       .update({ last_synced_at: new Date().toISOString(), external_id: match.external_id ?? p.externalId, ...(p.imageUrls.length ? { source_image_urls: p.imageUrls } : {}) })
       .eq("id", match.id);
+    if (updErr) {
+      const hint = migrationHint(updErr);
+      if (hint) throw hint;
+      errors.push(`${p.name}: ${updErr.message}`);
+    }
   }
-  await audit("product.import", { actorId: ownerId, details: { created, proposals } });
+  if (errors.length && !created && !proposals) throw new UserFacingError(`Importen feilet: ${errors.slice(0, 2).join(" · ")}`);
+  await audit("product.import", { actorId: ownerId, details: { created, proposals, errors: errors.length } });
   return { created, proposals };
 }
 
@@ -268,7 +288,8 @@ export async function resolveProposal(id: string, accept: boolean): Promise<Acti
 async function fetchImagesForProduct(productId: string, website: string): Promise<{ added: number; failed: string[] }> {
   const supabase = await createClient();
   const { data: product, error } = await supabase.from("products").select("id, name, product_url, source_image_urls").eq("id", productId).single();
-  if (error || !product) throw new UserFacingError("Fant ikke produktet.");
+  if (error) throw migrationHint(error) ?? error;
+  if (!product) throw new UserFacingError("Fant ikke produktet.");
   let urls: string[] = product.source_image_urls ?? [];
   if (!urls.length && product.product_url) {
     try {
@@ -282,7 +303,8 @@ async function fetchImagesForProduct(productId: string, website: string): Promis
   urls = normalizeImageUrls(urls, website);
   if (!urls.length) throw new UserFacingError("Fant ingen bilder for dette produktet i nettbutikken.");
 
-  const { data: existing } = await supabase.from("product_images").select("source_url").eq("product_id", productId);
+  const { data: existing, error: exErr } = await supabase.from("product_images").select("source_url").eq("product_id", productId);
+  if (exErr) throw migrationHint(exErr) ?? exErr;
   const have = new Set((existing ?? []).map((e) => e.source_url).filter(Boolean));
   let first = (existing ?? []).length === 0;
   let added = 0;
@@ -297,12 +319,13 @@ async function fetchImagesForProduct(productId: string, website: string): Promis
         .insert({ product_id: productId, storage_path: path, image_type: "product_photo", alt_text: product.name, is_primary: first, source_url: url });
       if (insErr) {
         await removeMedia([path]);
-        throw insErr;
+        throw migrationHint(insErr) ?? new Error(insErr.message);
       }
       first = false;
       added++;
     } catch (e) {
-      failed.push(`${new URL(url).pathname.split("/").pop()}: ${(e as Error).message}`);
+      if (e instanceof UserFacingError) throw e;
+      failed.push(`${decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "bilde")}: ${(e as Error).message}`);
     }
   }
   return { added, failed };
@@ -325,7 +348,7 @@ export async function importProductImagesFromStore(productId: string): Promise<A
   }
 }
 
-/** Henter bilder for inntil 8 produkter som ikke har bilder ennå (begrenset for å holde seg innenfor tidsgrensen). */
+/** Henter bilder for inntil 5 produkter som ikke har bilder ennå (begrenset for å holde seg innenfor tidsgrensen). */
 export async function importImagesForProductsWithoutImages(): Promise<ActionResult> {
   try {
     const owner = await requireOwner();
@@ -341,13 +364,19 @@ export async function importImagesForProductsWithoutImages(): Promise<ActionResu
     let added = 0;
     let done = 0;
     let failedProducts = 0;
-    for (const p of todo.slice(0, 8)) {
+    const reasons: string[] = [];
+    for (const p of todo.slice(0, 5)) {
       try {
         const r = await fetchImagesForProduct(p.id, settings.website);
         added += r.added;
-        if (!r.added) failedProducts++;
-      } catch {
+        if (!r.added) {
+          failedProducts++;
+          if (r.failed[0]) reasons.push(r.failed[0]);
+        }
+      } catch (e) {
+        if (e instanceof UserFacingError && /siste oppdatering/.test(e.message)) throw e;
         failedProducts++;
+        reasons.push((e as Error).message);
       }
       done++;
     }
@@ -355,9 +384,12 @@ export async function importImagesForProductsWithoutImages(): Promise<ActionResu
     revalidatePath("/produkter", "layout");
     if (!todo.length) return { ok: true, message: "Alle produkter har allerede bilder." };
     const rest = todo.length - done;
+    if (!added && failedProducts) {
+      return { ok: false, error: `Fikk ikke hentet bilder. Årsak: ${[...new Set(reasons)].slice(0, 2).join(" · ") || "ukjent"}` };
+    }
     return {
       ok: true,
-      message: `Hentet ${added} bilde(r) for ${done - failedProducts} av ${done} produkter.${failedProducts ? ` ${failedProducts} produkt(er) uten bilder i nettbutikken eller med feil.` : ""}${rest > 0 ? ` ${rest} gjenstår – trykk igjen for å fortsette.` : ""}`,
+      message: `Hentet ${added} bilde(r) for ${done - failedProducts} av ${done} produkter.${failedProducts ? ` ${failedProducts} produkt(er) feilet${reasons[0] ? ` (${reasons[0]})` : ""}.` : ""}${rest > 0 ? ` ${rest} gjenstår – trykk igjen for å fortsette.` : ""}`,
     };
   } catch (err) {
     return toActionError(err, "importImagesForProductsWithoutImages");

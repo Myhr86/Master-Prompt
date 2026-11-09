@@ -9,6 +9,9 @@ import { ProductForm } from "../product-form";
 import { ProductImages } from "./product-images";
 import type { Product, ProductImage } from "@/lib/types";
 
+// Henting av produkter og bilder kan ta tid.
+export const maxDuration = 300;
+
 export const metadata: Metadata = { title: "Produkt" };
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {

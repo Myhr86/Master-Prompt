@@ -56,7 +56,7 @@ export async function fetchImage(url: string, opts: { fetchImpl?: typeof fetch; 
   let current = (await assertPublicHttpsUrl(url, opts.lookup)).toString();
   for (let hop = 0; hop < 4; hop++) {
     const res = await f(current, {
-      headers: { Accept: "image/avif,image/webp,image/jpeg,image/png,*/*;q=0.5", "User-Agent": "MyhrSocialManager/1.0 (+produktbilder)" },
+      headers: { Accept: "image/jpeg,image/png,image/webp;q=0.9", "User-Agent": "MyhrSocialManager/1.0 (+produktbilder)" },
       signal: AbortSignal.timeout(20_000),
       redirect: "manual",
       cache: "no-store",

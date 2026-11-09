@@ -9,6 +9,9 @@ import { ImportPanel } from "./import-panel";
 import { ProposalList } from "./proposal-list";
 import { ProductForm } from "./product-form";
 
+// Henting av produkter og bilder kan ta tid.
+export const maxDuration = 300;
+
 export const metadata: Metadata = { title: "Produkter" };
 
 const nok = new Intl.NumberFormat("nb-NO", { style: "currency", currency: "NOK" });
