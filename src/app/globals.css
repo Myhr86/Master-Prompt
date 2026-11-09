@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
+
+  --color-linen: #faf7f2;
+  --color-paper: #fffdf9;
+  --color-ink: #2b2420;
+  --color-ink-soft: #5c524a;
+  --color-ink-mute: #8a7f75;
+  --color-line: #ebe3d8;
+
+  --color-wood-50: #f8f3ec;
+  --color-wood-100: #efe4d4;
+  --color-wood-200: #e0cbae;
+  --color-wood-300: #cba87f;
+  --color-wood-400: #b88b5c;
+  --color-wood-500: #a0703f;
+  --color-wood-600: #865a32;
+  --color-wood-700: #6b472a;
+  --color-wood-800: #523723;
+  --color-wood-900: #3a281b;
+
+  --color-moss-50: #f2f4ee;
+  --color-moss-100: #e1e6d8;
+  --color-moss-500: #6b7a55;
+  --color-moss-600: #56643f;
+  --color-moss-700: #434e31;
+
+  --radius-card: 1.25rem;
+  --shadow-soft: 0 1px 2px rgb(58 40 27 / 0.04), 0 8px 24px -12px rgb(58 40 27 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(58 40 27 / 0.06), 0 16px 40px -16px rgb(58 40 27 / 0.22);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+  body {
+    @apply bg-linen text-ink font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  h1, h2, h3 {
+    @apply font-display tracking-tight;
+    font-variation-settings: "opsz" 72, "SOFT" 50;
+  }
+  ::selection {
+    @apply bg-wood-200 text-wood-900;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-wood-500;
+  }
+}
+
+/* Diskret treårestruktur brukt som dekor i toppfelt */
+.grain {
+  background-image:
+    repeating-linear-gradient(100deg, rgb(160 112 63 / 0.05) 0 1px, transparent 1px 9px),
+    repeating-linear-gradient(97deg, rgb(160 112 63 / 0.04) 0 2px, transparent 2px 23px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
