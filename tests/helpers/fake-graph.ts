@@ -6,6 +6,8 @@ import { GraphClient } from "@/lib/facebook/graph";
  */
 export interface FakeGraphOptions {
   publish?: "ok" | "error-token" | "error-permission" | "timeout" | "timeout-but-created" | "error-500";
+  /** Status Facebook rapporterer for video etter opplasting */
+  videoStatus?: "ready" | "processing" | "error";
 }
 
 export function fakeGraph(opts: FakeGraphOptions = {}) {
@@ -16,11 +18,31 @@ export function fakeGraph(opts: FakeGraphOptions = {}) {
 
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
+    if (url.hostname === "rupload.facebook.com") {
+      calls.push({ method: "RUPLOAD", path: url.pathname, body: Object.fromEntries(new Headers(init?.headers).entries()) });
+      return json(200, { success: true });
+    }
     const path = url.pathname.replace(/^\/v\d+\.\d+\//, "");
     const body = Object.fromEntries(new URLSearchParams((init?.body as URLSearchParams | undefined)?.toString() ?? ""));
     const method = init?.method ?? "GET";
     calls.push({ method, path, body: method === "GET" ? Object.fromEntries(url.searchParams) : body });
 
+    if (method === "POST" && path.endsWith("/video_reels")) {
+      if (body.upload_phase === "start") return json(200, { video_id: `reel_${++n}` });
+      if (body.upload_phase === "finish") {
+        created.push({ id: body.video_id!, message: body.description ?? "", created_time: new Date().toISOString(), permalink_url: `https://www.facebook.com/reel/${body.video_id}` });
+        return json(200, { success: true });
+      }
+    }
+    if (method === "POST" && path.endsWith("/videos")) {
+      const id = `video_${++n}`;
+      created.push({ id, message: body.description ?? "", created_time: new Date().toISOString(), permalink_url: `https://www.facebook.com/${id}` });
+      return json(200, { id });
+    }
+    if (method === "GET" && /^(reel|video)_\d+$/.test(path)) {
+      const st = opts.videoStatus ?? "ready";
+      return json(200, { status: { video_status: st, ...(st === "error" ? { processing_phase: { status: "error", error: { message: "Ugyldig videoformat" } } } : {}) }, permalink_url: `/reel/${path}` });
+    }
     if (method === "POST" && /\/(feed|photos)$/.test(path)) {
       const mode = opts.publish ?? "ok";
       if (mode === "error-token") return json(400, { error: { message: "Error validating access token", code: 190 } });
@@ -43,5 +65,11 @@ export function fakeGraph(opts: FakeGraphOptions = {}) {
   };
 
   const graph = new GraphClient({ appId: "app", appSecret: "secret", version: "v99.0", fetchImpl, timeoutMs: 1000 });
-  return { graph, calls, created, publishCalls: () => calls.filter((c) => c.method === "POST" && /\/(feed|photos)$/.test(c.path)) };
+  return {
+    graph,
+    calls,
+    created,
+    publishCalls: () => calls.filter((c) => c.method === "POST" && /\/(feed|photos|videos)$/.test(c.path)),
+    reelCalls: () => calls.filter((c) => c.path.endsWith("/video_reels") || c.method === "RUPLOAD"),
+  };
 }

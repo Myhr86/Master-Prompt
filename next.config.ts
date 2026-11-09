@@ -13,6 +13,7 @@ const csp = [
   "script-src 'self' 'unsafe-inline'" + (process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""),
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob:${supabaseHost ? ` https://${supabaseHost}` : ""}`,
+  `media-src 'self' blob:${supabaseHost ? ` https://${supabaseHost}` : ""}`,
   "font-src 'self'",
   `connect-src 'self'${supabaseHost ? ` https://${supabaseHost} wss://${supabaseHost}` : ""}`,
   "frame-ancestors 'none'",

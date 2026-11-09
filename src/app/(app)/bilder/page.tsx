@@ -26,7 +26,8 @@ export default async function ImagesPage({ searchParams }: { searchParams: Promi
     postId ? supabase.from("posts").select("id, title, status").eq("id", postId).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   const productImages = (imagesRes.data ?? []) as ProductImage[];
-  const assets = (assetsRes.data ?? []) as MediaAsset[];
+  // Videoer håndteres i Mediebanken, ikke i bildeverkstedet.
+  const assets = ((assetsRes.data ?? []) as MediaAsset[]).filter((a) => a.media_type !== "video");
   const urls = await signedUrls([...productImages.map((i) => i.storage_path), ...assets.map((a) => a.storage_path)]);
   const provider = getImageProvider(settings.image_provider);
   const aiReady = Boolean(provider?.isConfigured());

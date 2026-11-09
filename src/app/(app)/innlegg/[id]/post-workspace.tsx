@@ -273,8 +273,8 @@ function ImagePanel({
       )}
       {assets.length > 0 && (
         <>
-          <p className="mt-5 text-sm font-medium">Fra bildeverkstedet</p>
-          <ImageGrid items={assets.map((a) => ({ id: a.id, url: a.url, label: a.ai ? "AI" : "" }))} onPick={(id) => run(() => setPostImage(post.id, { kind: "asset", id }))} disabled={pending} />
+          <p className="mt-5 text-sm font-medium">Fra mediebanken og bildeverkstedet</p>
+          <ImageGrid items={assets.map((a) => ({ id: a.id, url: a.url, label: a.kind === "video" ? "▶ Video" : a.ai ? "AI" : "" }))} onPick={(id) => run(() => setPostImage(post.id, { kind: "asset", id }))} disabled={pending} />
         </>
       )}
     </Card>

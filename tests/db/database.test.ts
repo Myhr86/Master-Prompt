@@ -283,6 +283,14 @@ run("Database: RLS, godkjenning og publiseringsvern", () => {
     expect(after.contest_id).toBeNull();
   });
 
+  it("video: mediebanken godtar video, bøtta tillater MP4/MOV", async () => {
+    await as(p, O(), (c) => c.query("insert into media_assets (storage_path, kind, media_type, mime_type, duration_seconds, in_library) values ('uploads/videos/2026/11/x.mp4','upload','video','video/mp4', 12.5, true)"));
+    await expect(as(p, O(), (c) => c.query("insert into media_assets (storage_path, kind, media_type) values ('y','upload','lyd')"))).rejects.toThrow(/media_assets_media_type_check/);
+    const b = await as(p, { kind: "superuser" }, (c) => c.query("select allowed_mime_types, file_size_limit from storage.buckets where id='media'").then((r) => r.rows[0]));
+    expect(b.allowed_mime_types).toEqual(expect.arrayContaining(["video/mp4", "video/quicktime", "image/jpeg"]));
+    expect(Number(b.file_size_limit)).toBeGreaterThanOrEqual(50 * 1024 * 1024);
+  });
+
   it("sporingskoder: standardverdier og validering", async () => {
     const row = await as(p, O(), (c) => c.query("select utm_enabled, utm_source, utm_medium from business_settings").then((r) => r.rows[0]));
     expect(row).toEqual({ utm_enabled: true, utm_source: "facebook", utm_medium: "social" });

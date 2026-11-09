@@ -83,3 +83,27 @@ export async function analyzeImage(
     model: res.model,
   };
 }
+
+/** Video: Claude ser på noen stillbilder fra videoen (kan ikke se selve videoen). */
+export async function analyzeVideoFrames(
+  frames: Buffer[],
+  durationSeconds: number | null,
+  products: { id: string; name: string }[],
+  call: StructuredCaller,
+  model?: string,
+): Promise<MediaAnalysis & { model: string }> {
+  const images = await Promise.all(frames.slice(0, 6).map(async (f) => ({ mediaType: "image/jpeg" as const, base64: await prepareForVision(f) })));
+  const productList = products.length ? products.map((p) => `- ${p.id}: ${p.name}`).join("\n") : "(ingen produkter registrert)";
+  const res = await call({
+    system: MEDIA_SYSTEM_PROMPT,
+    user: `Bildene er ${images.length} stillbilder i rekkefølge fra én video${durationSeconds ? ` på ${Math.round(durationSeconds)} sekunder` : ""}. Beskriv hva som skjer i videoen for mediebanken (f.eks. «laseren graverer et familiebilde på en flis, nærbilde»). Nevn i beskrivelsen hvis videoen egner seg som kort Reel.\n\nPRODUKTER (bruk ID hvis videoen tydelig viser ett av dem):\n${productList}`,
+    images,
+    schema: MediaAnalysisSchema,
+    model,
+    effort: "low",
+    maxTokens: 2000,
+  });
+  const ids = new Set(products.map((p) => p.id));
+  const tags = [...new Set(["video", ...res.data.tags.map((t) => t.trim().toLowerCase()).filter((t) => t && t.length <= 40)])].slice(0, 10);
+  return { ...res.data, tags, product_id: res.data.product_id && ids.has(res.data.product_id) ? res.data.product_id : null, model: res.model };
+}

@@ -23,6 +23,7 @@ Sannhet og nøyaktighet – absolutte regler:
 - Konkurranser er kun FORSLAG. Skriv dem slik at eieren må fylle inn premie, varighet og regler, og legg dette i "needs_verification". Følg Metas retningslinjer (ikke be folk dele på egen tidslinje eller tagge venner som betingelse for å delta).
 - Lenker skal kun være produktlenker fra biblioteket eller nettbutikkens adresse. Ikke lag nye URL-er.
 - Bilder: foreslå ekte bilder når de finnes. Mediebanken inneholder eierens egne bilder fra verkstedet, produksjonen og produktene (bruk suggested_media_id) – særlig fine til bak kulissene, håndverk og produktinnlegg. Produktbildene fra nettbutikken brukes via suggested_image_id. Velg det bildet som passer teksten best, og unngå bilder som nylig er brukt. Ikke foreslå at AI-genererte bilder presenteres som fotografier av ekte kundeprodukter.
+- Videoer i mediebanken (særlig de merket «Reel») når ofte mange nye personer. Bruk gjerne en video til bak kulissene, gravering og håndverk – maks ett videoinnlegg per uke med mindre eieren ber om mer. Tekst til video skal være kort og fange interessen i første setning.
 - Bilder der personer er synlige skal bare foreslås hvis det er naturlig, og nevn i "needs_verification" at eieren må ha samtykke fra personene.
 
 Egenkontroll før du svarer:
@@ -59,6 +60,10 @@ export interface GenerationContext {
     people_visible: boolean | null;
     last_used_at: string | null;
     use_count: number;
+    media_type?: "image" | "video";
+    duration_seconds?: number | null;
+    /** Kan publiseres som Reel (stående, 3–90 sek) */
+    reel?: boolean;
   }[];
   focus?: { postTypes?: string[]; productIds?: string[]; instructions?: string };
   now: Date;
@@ -120,7 +125,7 @@ PRODUKTBIBLIOTEK (eneste sannhetskilde)
 ${products.length ? JSON.stringify(products, null, 1) : "Biblioteket er tomt. Lag innlegg om bedriften, håndverket og nettbutikken generelt uten å nevne konkrete produkter, priser eller egenskaper. Lenk til nettbutikkens forside."}
 
 MEDIEBANK – eierens egne bilder (velg med suggested_media_id; ${ctx.mediaLibrary?.length ?? 0} bilder)
-${ctx.mediaLibrary?.length ? JSON.stringify(ctx.mediaLibrary.map((m) => ({ id: m.id, kategori: m.category, beskrivelse: trim(m.description ?? "", 220), stikkord: m.tags, produkt_id: m.product_id ?? undefined, personer: m.people_visible || undefined, sist_brukt: m.last_used_at?.slice(0, 10) ?? "aldri", brukt_ganger: m.use_count })), null, 1) : "Mediebanken er tom."}
+${ctx.mediaLibrary?.length ? JSON.stringify(ctx.mediaLibrary.map((m) => ({ id: m.id, type: m.media_type === "video" ? (m.reel ? "video (Reel)" : "video") : "bilde", lengde_sek: m.media_type === "video" && m.duration_seconds ? Math.round(m.duration_seconds) : undefined, kategori: m.category, beskrivelse: trim(m.description ?? "", 220), stikkord: m.tags, produkt_id: m.product_id ?? undefined, personer: m.people_visible || undefined, sist_brukt: m.last_used_at?.slice(0, 10) ?? "aldri", brukt_ganger: m.use_count })), null, 1) : "Mediebanken er tom."}
 
 ${ctx.contentMix ? `${ctx.contentMix}\n\n` : ""}TIDLIGERE INNLEGG – fra appen og fra Facebook-siden, nyeste først (${publishedCount} publisert)
 ${history.length ? JSON.stringify(history, null, 1) : "Ingen tidligere innlegg."}

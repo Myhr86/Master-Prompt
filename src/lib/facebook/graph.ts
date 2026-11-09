@@ -99,13 +99,13 @@ export class GraphClient {
     return u.toString();
   }
 
-  private async request<T>(method: "GET" | "POST" | "DELETE", path: string, params: Record<string, string>, token?: string): Promise<T> {
+  private async request<T>(method: "GET" | "POST" | "DELETE", path: string, params: Record<string, string>, token?: string, host?: string): Promise<T> {
     const all: Record<string, string> = { ...params };
     if (token) {
       all.access_token = token;
       all.appsecret_proof = this.proof(token);
     }
-    const url = new URL(`${this.base}/${path.replace(/^\//, "")}`);
+    const url = new URL(`${host ? `${host}/${this.cfg.version}` : this.base}/${path.replace(/^\//, "")}`);
     let body: URLSearchParams | undefined;
     if (method === "GET") Object.entries(all).forEach(([k, v]) => url.searchParams.set(k, v));
     else body = new URLSearchParams(all);
@@ -288,6 +288,55 @@ export class GraphClient {
 
   async publishPhoto(pageId: string, pageToken: string, input: { imageUrl: string; caption: string }): Promise<{ id: string; post_id?: string }> {
     return this.request<{ id: string; post_id?: string }>("POST", `${pageId}/photos`, { url: input.imageUrl, caption: input.caption, published: "true" }, pageToken);
+  }
+
+  /** Vanlig videoinnlegg: Facebook henter videoen selv fra en (signert) URL. */
+  async publishVideo(pageId: string, pageToken: string, input: { fileUrl: string; description: string }): Promise<{ id: string }> {
+    return this.request<{ id: string }>("POST", `${pageId}/videos`, { file_url: input.fileUrl, description: input.description, published: "true" }, pageToken, "https://graph-video.facebook.com");
+  }
+
+  /**
+   * Reels i tre steg (Metas Reels Publishing API):
+   * 1) start → video_id, 2) Facebook henter filen fra file_url, 3) finish → publiseres.
+   */
+  async publishReel(pageId: string, pageToken: string, input: { fileUrl: string; description: string }): Promise<{ videoId: string }> {
+    const start = await this.request<{ video_id: string }>("POST", `${pageId}/video_reels`, { upload_phase: "start" }, pageToken);
+    if (!start.video_id) throw new GraphError("Facebook returnerte ingen video-ID", 200, undefined, undefined, "client");
+    let res: Response;
+    try {
+      res = await this.f(`https://rupload.facebook.com/video-upload/${this.cfg.version}/${start.video_id}`, {
+        method: "POST",
+        headers: { Authorization: `OAuth ${pageToken}`, file_url: input.fileUrl },
+        signal: AbortSignal.timeout(this.cfg.timeoutMs ?? 120_000),
+        cache: "no-store",
+      });
+    } catch (err) {
+      // Ingenting er publisert ennå (finish er ikke kalt), så dette er en vanlig feil.
+      throw new GraphError(`Opplasting av video til Facebook feilet (${(err as Error).name})`, 0, undefined, undefined, "transient");
+    }
+    const up = (await res.json().catch(() => null)) as { success?: boolean; debug_info?: { message?: string } } | null;
+    if (!res.ok || !up?.success) throw new GraphError(`Facebook kunne ikke hente videoen: ${up?.debug_info?.message ?? `HTTP ${res.status}`}`, res.status, undefined, undefined, "client");
+    const fin = await this.request<{ success?: boolean }>(
+      "POST",
+      `${pageId}/video_reels`,
+      { upload_phase: "finish", video_id: start.video_id, video_state: "PUBLISHED", description: input.description },
+      pageToken,
+    );
+    if (!fin.success) throw new GraphError("Facebook bekreftet ikke publiseringen av reelen", 200, undefined, undefined, "unknown_outcome");
+    return { videoId: start.video_id };
+  }
+
+  /** Behandlingsstatus for en video/reel. */
+  async getVideoStatus(videoId: string, pageToken: string): Promise<{ status: string; error: string | null; permalink: string | null }> {
+    const r = await this.request<{ status?: { video_status?: string; processing_phase?: { status?: string; error?: { message?: string } }; publishing_phase?: { status?: string; error?: { message?: string } } }; permalink_url?: string }>(
+      "GET",
+      videoId,
+      { fields: "status,permalink_url" },
+      pageToken,
+    );
+    const err = r.status?.processing_phase?.error?.message ?? r.status?.publishing_phase?.error?.message ?? null;
+    const permalink = r.permalink_url ? (r.permalink_url.startsWith("http") ? r.permalink_url : `https://www.facebook.com${r.permalink_url}`) : null;
+    return { status: r.status?.video_status ?? "ukjent", error: err, permalink };
   }
 
   async getPost(postId: string, pageToken: string): Promise<{ id: string; permalink_url?: string; created_time?: string; message?: string }> {

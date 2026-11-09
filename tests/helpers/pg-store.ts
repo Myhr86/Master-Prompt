@@ -47,6 +47,13 @@ export function pgPublishStore(p: Pool, ownerId: string, connection: FacebookCon
     async imageUrl() {
       return imageUrl;
     },
+    async mediaInfo(path: string) {
+      return as(p, role, async (c) => {
+        const { rows } = await c.query("select media_type, duration_seconds, width, height from media_assets where storage_path = $1", [path]);
+        const r = rows[0];
+        return r ? { kind: r.media_type === "video" ? ("video" as const) : ("image" as const), durationSeconds: r.duration_seconds === null ? null : Number(r.duration_seconds), width: r.width, height: r.height } : null;
+      });
+    },
   };
   return store as PublishStore & { connectionStatus: string | null };
 }

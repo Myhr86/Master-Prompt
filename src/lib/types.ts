@@ -101,6 +101,11 @@ export interface MediaAsset {
   analyzed_at: string | null;
   last_used_at: string | null;
   use_count: number;
+  /** Finnes etter migrasjon 9 */
+  media_type?: "image" | "video";
+  mime_type?: string | null;
+  duration_seconds?: number | null;
+  thumbnail_path?: string | null;
   created_at: string;
 }
 

@@ -47,6 +47,13 @@ AI-en skriver bare om produkter som ligger i produktbiblioteket, og bruker bare 
 3. Trykk på et bilde for å rette beskrivelse, stikkord, kategori eller produkt. Kryss av **Personer er synlige** hvis noen kan kjennes igjen. Slike bilder bør bare brukes når du har samtykke.
 4. Når Claude lager innlegg, velger den passende bilder fra mediebanken og foretrekker bilder som ikke er brukt nylig.
 
+### Videoer og Reels
+
+- Velg videoer på samme måte som bilder i **Mediebank** (MP4 eller MOV, maks 50 MB). Ta gjerne opp **stående** og **under 90 sekunder**, for eksempel laseren som graverer. Da publiseres videoen som en **Reel**, som når flest nye personer.
+- Tips for iPhone: Innstillinger → Kamera → Formater → **Mest kompatibel**, og 1080p. Da blir filene mindre og fungerer i alle nettlesere.
+- Hold siden åpen mens videoen lastes opp. Claude beskriver den automatisk ut fra noen stillbilder.
+- I forhåndsvisningen av innlegget står det om videoen publiseres som Reel eller som vanlig video.
+
 ## 4. Generere innlegg
 
 1. Trykk **Lag** (mobil) eller **Lag innlegg** (PC).

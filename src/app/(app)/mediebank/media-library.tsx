@@ -4,12 +4,18 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, EmptyState, Field, Input, Notice, Select, Textarea, cx } from "@/components/ui";
 import { resizeForUpload } from "@/lib/client/resize-image";
-import { analyzeLibraryAsset, pendingLibraryIds, updateLibraryInfo, uploadLibraryImage } from "./actions";
+import { analyzeLibraryAsset, createVideoUpload, pendingLibraryIds, registerVideo, updateLibraryInfo, uploadLibraryImage } from "./actions";
+import { extractVideoInfo } from "@/lib/client/video-frames";
+import { formatDuration } from "@/lib/media/video";
+import { createClient as createSupabase } from "@supabase/supabase-js";
 import { deleteAsset } from "../bilder/actions";
 
 interface Item {
   id: string;
   url: string | null;
+  thumbUrl: string | null;
+  isVideo: boolean;
+  duration: number | null;
   description: string | null;
   tags: string[];
   category: string | null;
@@ -49,9 +55,15 @@ export function MediaLibrary({ aiReady, categories, products, assets }: { aiRead
     const list = Array.from(files).slice(0, 100);
     const uploaded: string[] = [];
     for (let i = 0; i < list.length; i++) {
-      setProgress({ phase: "Laster opp", done: i, total: list.length });
+      const file = list[i]!;
+      const isVideo = file.type.startsWith("video/");
+      setProgress({ phase: isVideo ? `Laster opp video (${file.name})` : "Laster opp", done: i, total: list.length });
       try {
-        const small = await resizeForUpload(list[i]!);
+        if (isVideo) {
+          await uploadVideo(file);
+          continue;
+        }
+        const small = await resizeForUpload(file);
         const fd = new FormData();
         fd.append("file", small);
         const r = await uploadLibraryImage(fd);
@@ -66,6 +78,26 @@ export function MediaLibrary({ aiReady, categories, products, assets }: { aiRead
     setProgress(null);
     if (inputRef.current) inputRef.current.value = "";
     router.refresh();
+  };
+
+  /** Video: stillbilder i nettleseren → engangslenke → direkte til lagringen → registrering og beskrivelse. */
+  const uploadVideo = async (file: File) => {
+    const info = await extractVideoInfo(file);
+    const type = file.type === "video/quicktime" ? "video/quicktime" : "video/mp4";
+    const start = await createVideoUpload({ name: file.name, size: file.size, type });
+    if (!start.ok || !start.data) throw new Error(start.ok ? "Kunne ikke starte opplasting" : start.error);
+    const supabase = createSupabase(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } });
+    const { error } = await supabase.storage.from("media").uploadToSignedUrl(start.data.path, start.data.token, file, { contentType: type });
+    if (error) throw new Error(`${file.name}: opplasting feilet (${error.message})`);
+    const fd = new FormData();
+    fd.append("path", start.data.path);
+    if (info.duration) fd.append("duration", String(info.duration));
+    if (info.width) fd.append("width", String(info.width));
+    if (info.height) fd.append("height", String(info.height));
+    info.frames.forEach((f, i) => fd.append("frames", new File([f], `frame-${i}.jpg`, { type: "image/jpeg" })));
+    const r = await registerVideo(fd);
+    if (!r.ok) throw new Error(r.error);
+    if (!info.frames.length) setErrors((e) => [...e, `${file.name}: lastet opp, men nettleseren kunne ikke lese videoen – skriv beskrivelsen selv.`]);
   };
 
   const analyzePending = async () => {
@@ -93,13 +125,15 @@ export function MediaLibrary({ aiReady, categories, products, assets }: { aiRead
       <Card className="flex flex-col gap-3 p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg">Last opp bilder</h2>
-            <p className="text-sm text-ink-soft">Velg mange om gangen fra mobilen eller PC-en. Bildene gjøres mindre før opplasting, og posisjon og annen metadata fjernes.</p>
+            <h2 className="text-lg">Last opp bilder og videoer</h2>
+            <p className="text-sm text-ink-soft">
+              Velg mange om gangen fra mobilen eller PC-en. Bildene gjøres mindre før opplasting, og posisjon og annen metadata fjernes. Videoer (MP4/MOV, maks {process.env.NEXT_PUBLIC_MAX_VIDEO_MB ?? 50} MB) lastes direkte til den private lagringen. Stående videoer på 3–90 sekunder kan publiseres som Reels.
+            </p>
           </div>
           <Button disabled={busy} onClick={() => inputRef.current?.click()}>
-            {busy ? "Arbeider …" : "Velg bilder"}
+            {busy ? "Arbeider …" : "Velg bilder og videoer"}
           </Button>
-          <input ref={inputRef} type="file" accept="image/*" multiple className="sr-only" onChange={(e) => onFiles(e.target.files)} aria-label="Velg bilder" />
+          <input ref={inputRef} type="file" accept="image/*,video/mp4,video/quicktime" multiple className="sr-only" onChange={(e) => onFiles(e.target.files)} aria-label="Velg bilder og videoer" />
         </div>
         {progress && (
           <div aria-live="polite">
@@ -153,8 +187,13 @@ export function MediaLibrary({ aiReady, categories, products, assets }: { aiRead
                       // På mobil ligger redigeringen under bildene – rull dit.
                       if (window.innerWidth < 1024) requestAnimationFrame(() => document.getElementById("media-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }));
                     }} className={cx("block w-full overflow-hidden rounded-xl bg-paper text-left ring-1", selected === a.id ? "ring-2 ring-wood-600" : "ring-line")}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {a.url && <img src={a.url} alt={a.description ?? ""} className="aspect-square w-full bg-wood-50 object-cover" loading="lazy" />}
+                    <span className="relative block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {(a.isVideo ? a.thumbUrl : a.url) ? <img src={(a.isVideo ? a.thumbUrl : a.url) ?? undefined} alt={a.description ?? ""} className="aspect-square w-full bg-wood-50 object-cover" loading="lazy" /> : <span className="grain block aspect-square w-full bg-wood-50" />}
+                      {a.isVideo && (
+                        <span className="absolute bottom-1.5 right-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[11px] text-white">▶ {formatDuration(a.duration)}</span>
+                      )}
+                    </span>
                     <div className="p-2">
                       <p className="text-[11px] font-medium uppercase tracking-wider text-wood-700">{a.status === "done" ? catLabel(a.category) : a.status === "failed" ? "Beskrivelse feilet" : "Venter på beskrivelse"}</p>
                       <p className="line-clamp-2 text-xs text-ink-soft">{a.description ?? "–"}</p>
@@ -194,8 +233,12 @@ function Editor({ item, categories, products, aiReady, onDeleted }: { item: Item
     });
   return (
     <Card className="flex flex-col gap-3 p-4">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {item.url && <img src={item.url} alt={item.description ?? ""} className="max-h-72 w-full rounded-xl bg-wood-50 object-contain" />}
+      {item.isVideo ? (
+        item.url && <video src={item.url} poster={item.thumbUrl ?? undefined} controls playsInline preload="metadata" className="max-h-80 w-full rounded-xl bg-black" />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        item.url && <img src={item.url} alt={item.description ?? ""} className="max-h-72 w-full rounded-xl bg-wood-50 object-contain" />
+      )}
       <div className="flex flex-wrap gap-1.5">
         {item.peopleVisible && <Badge className="bg-amber-50 text-amber-800 ring-amber-200">Personer synlige – krever samtykke</Badge>}
         {item.lastUsedAt && <Badge className="bg-wood-50 text-wood-800 ring-wood-200">Sist brukt {new Date(item.lastUsedAt).toLocaleDateString("nb-NO")}</Badge>}

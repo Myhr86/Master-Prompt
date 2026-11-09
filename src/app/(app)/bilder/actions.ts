@@ -129,6 +129,7 @@ export async function reformatAsset(assetId: string, fmt: string): Promise<Actio
     const supabase = await createClient();
     const { data: a } = await supabase.from("media_assets").select("*").eq("id", uuidSchema.parse(assetId)).single();
     if (!a) throw new UserFacingError("Fant ikke bildet.");
+    if (a.media_type === "video") throw new UserFacingError("Videoer kan ikke beskjæres her.");
     const out = await toFormat(await downloadMedia(a.storage_path), f);
     await saveAsset({ data: out, mime: "image/jpeg", folder: "composites", kind: a.kind, is_ai_generated: a.is_ai_generated, contains_real_product_photo: a.contains_real_product_photo, prompt: a.prompt, provider: a.provider, format: f, product_id: a.product_id, source_asset_id: a.id, source_product_image_id: a.source_product_image_id });
     return done("Ny versjon i valgt format er lagret.");
@@ -159,13 +160,13 @@ export async function deleteAsset(assetId: string): Promise<ActionResult> {
   try {
     const owner = await requireOwner();
     const supabase = await createClient();
-    const { data: a } = await supabase.from("media_assets").select("id, storage_path").eq("id", uuidSchema.parse(assetId)).single();
+    const { data: a } = await supabase.from("media_assets").select("*").eq("id", uuidSchema.parse(assetId)).single();
     if (!a) throw new UserFacingError("Fant ikke bildet.");
     const { count } = await supabase.from("posts").select("id", { count: "exact", head: true }).eq("image_path", a.storage_path).in("status", ["APPROVED", "SCHEDULED", "PUBLISHING", "PUBLISHED"]);
     if (count) throw new UserFacingError("Bildet brukes i et godkjent, planlagt eller publisert innlegg og kan ikke slettes.");
     const { error } = await supabase.from("media_assets").delete().eq("id", a.id);
     if (error) throw error;
-    await removeMedia([a.storage_path]);
+    await removeMedia([a.storage_path, ...(a.thumbnail_path ? [a.thumbnail_path] : [])]);
     await audit("media.deleted", { actorId: owner.id, entity: "media", entityId: a.id });
     return done("Bildet er slettet.");
   } catch (err) {

@@ -20,13 +20,13 @@ export default async function MediaLibraryPage() {
     getProducts(),
   ]);
   const assets = (data ?? []) as MediaAsset[];
-  const urls = await signedUrls(assets.map((a) => a.storage_path));
+  const urls = await signedUrls([...assets.map((a) => a.storage_path), ...assets.map((a) => a.thumbnail_path)]);
   return (
     <div>
       <PageHeader
         eyebrow="Eget materiale"
         title="Mediebank"
-        subtitle="Last opp bilder fra verkstedet, graveringen, produksjonen og produktene i hyllene. Claude beskriver hvert bilde én gang og kan deretter velge passende bilder når innlegg lages."
+        subtitle="Last opp bilder og videoer fra verkstedet, graveringen, produksjonen og produktene i hyllene. Claude beskriver hver fil én gang og kan deretter velge passende materiale når innlegg lages."
       />
       {error && (
         <div className="mb-5">
@@ -47,6 +47,9 @@ export default async function MediaLibraryPage() {
         assets={assets.map((a) => ({
           id: a.id,
           url: urls[a.storage_path] ?? null,
+          thumbUrl: a.thumbnail_path ? urls[a.thumbnail_path] ?? null : null,
+          isVideo: a.media_type === "video",
+          duration: a.duration_seconds == null ? null : Number(a.duration_seconds),
           description: a.description,
           tags: a.tags ?? [],
           category: a.category,

@@ -1,6 +1,7 @@
 import { postContentHash, composeFacebookMessage } from "./content-hash";
 import { PUBLISHABLE_STATUSES, type PostStatus } from "./status";
 import { GraphError, postUrl, type GraphClient } from "../facebook/graph";
+import { isVideoPath, reelEligibility } from "../media/video";
 
 /**
  * Publiseringstjenesten. All tilgang til database og Facebook går via
@@ -53,15 +54,19 @@ export interface PublishStore {
   getConnection(): Promise<FacebookConnectionSecret | null>;
   setConnectionStatus(status: "connected" | "expired" | "revoked" | "error", error: string | null): Promise<void>;
   imageUrl(path: string): Promise<string | null>;
+  /** Informasjon om filen innlegget bruker (bilde eller video). */
+  mediaInfo?(path: string): Promise<{ kind: "image" | "video"; durationSeconds: number | null; width: number | null; height: number | null } | null>;
 }
 
 export interface PublishDeps {
   store: PublishStore;
   graph: GraphClient | null;
   mode: "live" | "simulated";
-  /** Sjekker at bilde-URL-en faktisk svarer. Kan overstyres i tester. */
+  /** Sjekker at bilde-/video-URL-en faktisk svarer. Kan overstyres i tester. */
   checkImage?: (url: string) => Promise<boolean>;
   now?: () => Date;
+  /** Venting mellom statussjekker for video (kan overstyres i tester). */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export type PublishResult =
@@ -85,7 +90,8 @@ const fail = (reason: PublishFailure, message: string): PublishResult => ({ ok: 
 async function defaultCheckImage(url: string): Promise<boolean> {
   try {
     const r = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(10_000), cache: "no-store" });
-    return r.ok && (r.headers.get("content-type") ?? "").startsWith("image/");
+    const type = r.headers.get("content-type") ?? "";
+    return r.ok && (type.startsWith("image/") || type.startsWith("video/"));
   } catch {
     return false;
   }
@@ -132,11 +138,15 @@ export async function publishPost(postId: string, deps: PublishDeps): Promise<Pu
   const invalid = validateForPublishing(post);
   if (invalid) return invalid;
 
-  // Bildet må være tilgjengelig.
+  // Bildet/videoen må være tilgjengelig.
   let imageUrl: string | null = null;
+  const media = post.image_path ? ((await store.mediaInfo?.(post.image_path)) ?? null) : null;
+  const isVideo = media?.kind === "video" || isVideoPath(post.image_path);
   if (post.image_path) {
     imageUrl = await store.imageUrl(post.image_path);
-    if (!imageUrl || !(await checkImage(imageUrl))) return fail("image_unavailable", "Bildet til innlegget er ikke tilgjengelig. Velg eller last opp bildet på nytt.");
+    if (!imageUrl || !(await checkImage(imageUrl))) {
+      return fail("image_unavailable", isVideo ? "Videoen til innlegget er ikke tilgjengelig. Velg videoen på nytt." : "Bildet til innlegget er ikke tilgjengelig. Velg eller last opp bildet på nytt.");
+    }
   }
 
   // Facebook-tilkoblingen må fungere (også i testmodus kontrolleres status hvis den finnes).
@@ -162,8 +172,10 @@ export async function publishPost(postId: string, deps: PublishDeps): Promise<Pu
     throw err;
   }
 
-  const isPhoto = Boolean(imageUrl);
-  const message = buildMessage(post, isPhoto);
+  const isPhoto = Boolean(imageUrl) && !isVideo;
+  // Bilde- og videoinnlegg har ikke eget lenkefelt – lenken legges i teksten.
+  const message = buildMessage(post, Boolean(imageUrl));
+  const asReel = isVideo && media ? reelEligibility(media).ok : false;
 
   if (deps.mode === "simulated") {
     await store.completeAttempt(attempt.id, "succeeded", {});
@@ -172,7 +184,7 @@ export async function publishPost(postId: string, deps: PublishDeps): Promise<Pu
       simulated: true,
       facebookPostId: null,
       url: null,
-      message: `Testmodus: publiseringen ble simulert. Alle kontroller var OK (${isPhoto ? "bildeinnlegg" : post.link_url ? "lenkeinnlegg" : "tekstinnlegg"}). Ingenting ble sendt til Facebook.`,
+      message: `Testmodus: publiseringen ble simulert. Alle kontroller var OK (${isVideo ? (asReel ? "reel" : "videoinnlegg") : isPhoto ? "bildeinnlegg" : post.link_url ? "lenkeinnlegg" : "tekstinnlegg"}). Ingenting ble sendt til Facebook.`,
     };
   }
 
@@ -180,7 +192,12 @@ export async function publishPost(postId: string, deps: PublishDeps): Promise<Pu
   const c = conn!;
   try {
     let fbId: string;
-    if (isPhoto) {
+    if (isVideo) {
+      const v = await publishVideoPost(graph, c.pageId, c.token, { fileUrl: imageUrl!, description: message, asReel }, deps.sleep);
+      await store.markPublished(post.id, v.id, v.url);
+      await store.completeAttempt(attempt.id, "succeeded", { facebookPostId: v.id, pageId: c.pageId });
+      return { ok: true, simulated: false, facebookPostId: v.id, url: v.url, message: v.processing ? `${asReel ? "Reelen" : "Videoen"} er publisert. Facebook behandler den fortsatt – den vises på siden om noen minutter.` : `${asReel ? "Reelen" : "Videoen"} er publisert og bekreftet av Facebook.` };
+    } else if (isPhoto) {
       const r = await graph.publishPhoto(c.pageId, c.token, { imageUrl: imageUrl!, caption: message });
       fbId = r.post_id ?? r.id;
     } else {
@@ -260,6 +277,34 @@ async function reconcile(post: PublishablePost, deps: PublishDeps): Promise<Publ
   await store.completeAttempt(attempt.id, "failed", { error: "Ikke funnet på Facebook ved kontroll" });
   await store.markFailed(post.id, "Forrige forsøk ble ikke fullført hos Facebook.");
   return null;
+}
+
+/**
+ * Publiserer video som Reel eller vanlig video, og venter kort på at Facebook
+ * behandler den. En behandlingsfeil fra Facebook gjøres om til en feil.
+ */
+async function publishVideoPost(
+  graph: GraphClient,
+  pageId: string,
+  token: string,
+  input: { fileUrl: string; description: string; asReel: boolean },
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<{ id: string; url: string | null; processing: boolean }> {
+  const id = input.asReel ? (await graph.publishReel(pageId, token, input)).videoId : (await graph.publishVideo(pageId, token, input)).id;
+  let url: string | null = input.asReel ? `https://www.facebook.com/reel/${id}` : postUrl(id);
+  for (let i = 0; i < 6; i++) {
+    await sleep(5000);
+    try {
+      const st = await graph.getVideoStatus(id, token);
+      if (st.permalink) url = st.permalink;
+      if (st.status === "error") throw new GraphError(`Facebook kunne ikke behandle videoen: ${st.error ?? "ukjent feil"}`, 200, undefined, undefined, "client");
+      if (st.status === "ready") return { id, url, processing: false };
+    } catch (err) {
+      if (err instanceof GraphError && err.kind === "client") throw err;
+      // Statusoppslag som feiler midlertidig stopper ikke publiseringen.
+    }
+  }
+  return { id, url, processing: true };
 }
 
 export function friendlyGraphError(e: GraphError): string {

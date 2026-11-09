@@ -6,6 +6,7 @@ import { upcomingSeasonalEvents } from "../calendar/seasons";
 import type { GenerationContext } from "./prompts";
 import { contentMix } from "../analytics/page-insights";
 import { mixSummaryForPrompt } from "../analytics/mix";
+import { reelEligibility } from "../media/video";
 
 /** Bygger konteksten Claude får: innstillinger, produktbibliotek, historikk og tidspunkter. */
 export async function loadGenerationContext(input: {
@@ -33,7 +34,7 @@ export async function loadGenerationContext(input: {
     // Mediebanken: kun tekstbeskrivelser av ferdig analyserte bilder (billig).
     supabase
       .from("media_assets")
-      .select("id, category, description, tags, product_id, people_visible, last_used_at, use_count")
+      .select("*")
       .eq("in_library", true)
       .eq("analysis_status", "done")
       .order("last_used_at", { ascending: true, nullsFirst: true })
@@ -82,7 +83,21 @@ export async function loadGenerationContext(input: {
     contentMix: await contentMix(supabase, 30)
       .then((m) => mixSummaryForPrompt(m, 30))
       .catch(() => ""),
-    mediaLibrary: mediaRes.error ? [] : ((mediaRes.data ?? []) as NonNullable<GenerationContext["mediaLibrary"]>),
+    mediaLibrary: mediaRes.error
+      ? []
+      : (mediaRes.data ?? []).map((m) => ({
+          id: m.id,
+          category: m.category,
+          description: m.description,
+          tags: m.tags ?? [],
+          product_id: m.product_id,
+          people_visible: m.people_visible,
+          last_used_at: m.last_used_at,
+          use_count: m.use_count ?? 0,
+          media_type: m.media_type === "video" ? ("video" as const) : ("image" as const),
+          duration_seconds: m.duration_seconds == null ? null : Number(m.duration_seconds),
+          reel: m.media_type === "video" ? reelEligibility({ durationSeconds: m.duration_seconds == null ? null : Number(m.duration_seconds), width: m.width, height: m.height }).ok : false,
+        })),
     slots,
     seasonalEvents: seasonal.map((s) => ({ name: s.name, date: s.date, angle: s.angle })),
     focus: { postTypes: input.postTypes, productIds: input.productIds, instructions: input.instructions },

@@ -14,6 +14,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { FacebookPreview } from "@/components/facebook-preview";
 import { POST_TYPE_LABEL } from "@/lib/ai/schemas";
 import { readUtm } from "@/lib/posts/utm";
+import { isVideoPath, reelEligibility } from "@/lib/media/video";
 import { PostWorkspace } from "./post-workspace";
 import type { MediaAsset, ProductImage } from "@/lib/types";
 
@@ -40,7 +41,7 @@ export default async function PostPage({ params, searchParams }: { params: Promi
   ]);
   const productImages = (productImagesRes.data ?? []) as ProductImage[];
   const assets = (assetsRes.data ?? []) as MediaAsset[];
-  const urls = await signedUrls([post.image_path, ...productImages.map((i) => i.storage_path), ...assets.map((a) => a.storage_path)]);
+  const urls = await signedUrls([post.image_path, ...productImages.map((i) => i.storage_path), ...assets.map((a) => a.storage_path), ...assets.map((a) => a.thumbnail_path)]);
   const currentAsset = assets.find((a) => a.id === post.image_asset_id);
   const approvalValid = Boolean(post.approved_at && post.approved_content_hash === postContentHash(post));
   const mode = effectivePublishMode(settings.test_mode);
@@ -67,6 +68,11 @@ export default async function PostPage({ params, searchParams }: { params: Promi
             linkUrl={post.link_url}
             imageUrl={post.image_path ? urls[post.image_path] ?? null : null}
             isAiImage={currentAsset?.is_ai_generated}
+            video={
+              currentAsset?.media_type === "video" || isVideoPath(post.image_path)
+                ? { poster: currentAsset?.thumbnail_path ? urls[currentAsset.thumbnail_path] ?? null : null, reel: currentAsset ? reelEligibility({ durationSeconds: currentAsset.duration_seconds == null ? null : Number(currentAsset.duration_seconds), width: currentAsset.width, height: currentAsset.height }).ok : false }
+                : undefined
+            }
             when={post.scheduled_at ? formatShortDateTime(post.scheduled_at) : undefined}
           />
           {post.link_url && (
@@ -116,7 +122,7 @@ export default async function PostPage({ params, searchParams }: { params: Promi
             aiConfigured={integrations().anthropic}
             products={products.map((p) => ({ id: p.id, name: p.name }))}
             productImages={productImages.map((i) => ({ id: i.id, url: urls[i.storage_path] ?? null, productId: i.product_id, label: products.find((p) => p.id === i.product_id)?.name ?? "" }))}
-            assets={assets.map((a) => ({ id: a.id, url: urls[a.storage_path] ?? null, ai: a.is_ai_generated, kind: a.kind }))}
+            assets={assets.map((a) => ({ id: a.id, url: (a.media_type === "video" ? (a.thumbnail_path ? urls[a.thumbnail_path] : null) : urls[a.storage_path]) ?? null, ai: a.is_ai_generated, kind: a.media_type === "video" ? "video" : a.kind }))}
             startEditing={rediger === "1"}
           />
 

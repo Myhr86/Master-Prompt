@@ -61,9 +61,20 @@ export function supabasePublishStore(db: SupabaseClient): PublishStore {
     },
     getConnection: getConnectionSecret,
     setConnectionStatus,
+    async mediaInfo(path) {
+      const { data } = await admin.from("media_assets").select("media_type, duration_seconds, width, height").eq("storage_path", path).maybeSingle();
+      if (!data) return null;
+      return {
+        kind: data.media_type === "video" ? "video" : "image",
+        durationSeconds: data.duration_seconds === null ? null : Number(data.duration_seconds),
+        width: data.width,
+        height: data.height,
+      };
+    },
     async imageUrl(path) {
-      // Kortlevd signert URL som Facebook kan hente bildet fra.
-      const { data, error } = await admin.storage.from(MEDIA_BUCKET).createSignedUrl(path, 60 * 30);
+      // Tidsbegrenset signert URL som Facebook henter filen fra (video behandles asynkront – lengre levetid).
+      const ttl = /\.(mp4|mov)$/i.test(path) ? 60 * 60 * 3 : 60 * 30;
+      const { data, error } = await admin.storage.from(MEDIA_BUCKET).createSignedUrl(path, ttl);
       if (error || !data) return null;
       return data.signedUrl;
     },
