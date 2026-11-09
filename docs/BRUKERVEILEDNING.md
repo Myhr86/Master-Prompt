@@ -89,6 +89,15 @@ Publisering er et eget steg etter godkjenning. Når innlegget er godkjent, har d
 
 Hvis noe går galt, får innlegget status **Feilet** med en forklaring, og du kan prøve igjen. Er Facebook-tilgangen utløpt, kobler du til på nytt (punkt 2). Godkjenningen beholdes.
 
+## 7b. Konkurranser
+
+1. Gå til **Mer → Konkurranser** og fyll ut skjemaet: tittel, premie, eventuelt et spørsmål, datoer og antall vinnere. Vilkårene vises nederst før du lagrer.
+2. Trykk **Lag konkurranse og innlegg**. Du får tre innlegg (kunngjøring, påminnelse og vinner) som venter på godkjenning. Godkjenn og planlegg dem som vanlig.
+3. Når fristen har gått ut: kopier navnene til deltakerne fra kommentarfeltet på Facebook, lim dem inn under **Trekk vinner**, ett navn per linje, og trykk knappen. Navnet settes automatisk inn i vinnerinnlegget.
+4. Kontakt vinneren, og godkjenn vinnerinnlegget.
+
+Facebook tillater ikke at folk må dele innlegget eller tagge venner for å delta. Appen sier fra hvis teksten inneholder slike krav.
+
 ## 8. Statistikk
 
 Under **Mer → Analyse** ser du reaksjoner, kommentarer og delinger for publiserte innlegg. Trykk **Be Claude om analyse og forslag** for å få tips om hvilke innlegg som fungerer best. Det krever statistikk for minst tre innlegg. Systemet viser bare tall som faktisk er hentet fra Facebook.

@@ -22,6 +22,7 @@ import { createImageForPost } from "@/lib/images/service";
 import type { Post } from "@/lib/types";
 import { markMediaUsed } from "@/lib/media/usage";
 import { utmFromSettings, withUtm } from "@/lib/posts/utm";
+import { enforceContestText } from "@/lib/contests/server";
 import { randomUUID } from "node:crypto";
 
 function refresh(id?: string) {
@@ -52,9 +53,18 @@ export async function updatePost(_prev: ActionResult | undefined, formData: Form
     // Lenker til nettbutikken får sporingskode (vises i forhåndsvisningen før godkjenning).
     const link = withUtm(input.link_url, settings.website, { settings: utmFromSettings(settings), campaign: before.post_type ?? "manuelt", postId: input.id });
     const supabase = await createClient();
+    // Konkurranseinnlegg: vilkårene beholdes og teksten kontrolleres mot Facebooks regler.
+    const contest = await enforceContestText(supabase, { contest_id: before.contest_id ?? null, contest_role: before.contest_role ?? null }, input, settings.business_name);
     const { data, error } = await supabase
       .from("posts")
-      .update({ title: input.title, content: input.content, hashtags: input.hashtags, link_url: link, product_id: input.product_id })
+      .update({
+        title: input.title,
+        content: contest?.content ?? input.content,
+        hashtags: input.hashtags,
+        link_url: link,
+        product_id: input.product_id,
+        ...(contest ? { verification_notes: contest.warnings } : {}),
+      })
       .eq("id", input.id)
       .select("status, approved_at")
       .single();
@@ -261,9 +271,17 @@ export async function regenerateText(id: string, instructions: string): Promise<
       { products, productImageIds: new Set(), website: settings.website, recentTexts: [], fallbackTimes: [], now: new Date(), defaultHashtags: [] },
     );
     const supabase = await createClient();
+    const contest = await enforceContestText(supabase, { contest_id: post.contest_id ?? null, contest_role: post.contest_role ?? null }, { title: result.title, content: result.content }, settings.business_name);
     const { error } = await supabase
       .from("posts")
-      .update({ title: result.title, content: result.content, hashtags: result.hashtags, rationale: result.rationale, verification_notes: checked.warnings, ai_model: result.model })
+      .update({
+        title: result.title,
+        content: contest?.content ?? result.content,
+        hashtags: result.hashtags,
+        rationale: result.rationale,
+        verification_notes: contest ? [...contest.warnings, ...checked.warnings.filter((w) => !/rabatt|tilbud/i.test(w))] : checked.warnings,
+        ai_model: result.model,
+      })
       .eq("id", id);
     if (error) throw error;
     await supabase.from("ai_generations").insert({ kind: "rewrite", model: result.model, status: "succeeded", request: { post_id: id, instructions: instr }, response: result, created_by: owner.id });

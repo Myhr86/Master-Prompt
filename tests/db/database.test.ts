@@ -21,7 +21,7 @@ run("Database: RLS, godkjenning og publiseringsvern", () => {
     await p?.end();
   });
   beforeEach(async () => {
-    await as(p, { kind: "superuser" }, (c) => c.query("truncate posts, publish_attempts, post_history, products, audit_log, facebook_connections, media_assets cascade"));
+    await as(p, { kind: "superuser" }, (c) => c.query("truncate posts, publish_attempts, post_history, products, audit_log, facebook_connections, media_assets, contests cascade"));
   });
 
   async function newPost(fields: Record<string, unknown> = {}) {
@@ -265,6 +265,22 @@ run("Database: RLS, godkjenning og publiseringsvern", () => {
     const r = await as(p, O(), (c) => c.query("select reactions, comments, shares, post_type from facebook_page_posts where facebook_post_id='1_77'").then((x) => x.rows[0]));
     expect(r).toEqual({ reactions: 10, comments: 2, shares: 1, post_type: "handverk" });
     await expect(as(p, O(), (c) => c.query("update facebook_page_posts set reactions=999"))).rejects.toThrow(/permission denied/);
+  });
+
+  it("konkurranser: kun eier, gyldige datoer, innlegg kobles og overlever sletting", async () => {
+    const cid = await as(p, O(), (c) =>
+      c.query("insert into contests (title, prize, starts_at, ends_at, announce_at) values ('Vinn', 'Flis', now(), now() + interval '7 day', now() + interval '8 day') returning id").then((r) => r.rows[0].id),
+    );
+    await expect(as(p, O(), (c) => c.query("insert into contests (title, prize, starts_at, ends_at, announce_at) values ('Feil', 'Flis', now(), now() - interval '1 day', now())"))).rejects.toThrow(/contest_dates_valid/);
+    const other = await as(p, { kind: "authenticated", sub: stranger }, (c) => c.query("select * from contests").then((r) => r.rows));
+    expect(other).toHaveLength(0);
+    await expect(as(p, { kind: "anon" }, (c) => c.query("select * from contests"))).rejects.toThrow(/permission denied/);
+    const post = await as(p, O(), (c) => c.query("insert into posts (content, contest_id, contest_role, generated_by) values ('Konkurranse', $1, 'kunngjoring', 'ai') returning id, status", [cid]).then((r) => r.rows[0]));
+    expect(post.status).toBe("PENDING_APPROVAL");
+    await expect(as(p, O(), (c) => c.query("insert into posts (content, contest_id, contest_role) values ('x', $1, 'ugyldig')", [cid]))).rejects.toThrow(/posts_contest_role_check/);
+    await as(p, O(), (c) => c.query("delete from contests where id=$1", [cid]));
+    const after = await as(p, O(), (c) => c.query("select contest_id from posts where id=$1", [post.id]).then((r) => r.rows[0]));
+    expect(after.contest_id).toBeNull();
   });
 
   it("sporingskoder: standardverdier og validering", async () => {

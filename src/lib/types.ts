@@ -27,6 +27,8 @@ export interface Post {
   generated_by: "ai" | "owner";
   ai_model: string | null;
   generation_batch_id: string | null;
+  contest_id?: string | null;
+  contest_role?: "kunngjoring" | "paminnelse" | "vinner" | null;
   created_at: string;
   updated_at: string;
 }

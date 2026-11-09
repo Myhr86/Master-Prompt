@@ -15,6 +15,7 @@ const MAIN = [
   { href: "/produkter", label: "Produkter", icon: Icon.box },
   { href: "/mediebank", label: "Mediebank", icon: Icon.image },
   { href: "/bilder", label: "Bildeverksted", icon: Icon.brush },
+  { href: "/konkurranser", label: "Konkurranser", icon: Icon.gift },
   { href: "/analyse", label: "Analyse", icon: Icon.chart },
   { href: "/innstillinger", label: "Innstillinger", icon: Icon.settings },
 ];
