@@ -159,14 +159,46 @@ export class GraphClient {
   }
 
   /** Validerer et token og returnerer utløpstid (null = utløper ikke). */
-  async debugToken(token: string): Promise<{ isValid: boolean; expiresAt: Date | null; scopes: string[] }> {
-    const r = await this.request<{ data: { is_valid: boolean; expires_at?: number; data_access_expires_at?: number; scopes?: string[] } }>(
-      "GET",
-      "debug_token",
-      { input_token: token, access_token: `${this.cfg.appId}|${this.cfg.appSecret}` },
-    );
+  async debugToken(token: string): Promise<{ isValid: boolean; expiresAt: Date | null; scopes: string[]; granularScopes: { scope: string; target_ids?: string[] }[] }> {
+    const r = await this.request<{
+      data: { is_valid: boolean; expires_at?: number; data_access_expires_at?: number; scopes?: string[]; granular_scopes?: { scope: string; target_ids?: string[] }[] };
+    }>("GET", "debug_token", { input_token: token, access_token: `${this.cfg.appId}|${this.cfg.appSecret}` });
     const exp = r.data.expires_at && r.data.expires_at > 0 ? new Date(r.data.expires_at * 1000) : null;
-    return { isValid: r.data.is_valid, expiresAt: exp, scopes: r.data.scopes ?? [] };
+    return { isValid: r.data.is_valid, expiresAt: exp, scopes: r.data.scopes ?? [], granularScopes: r.data.granular_scopes ?? [] };
+  }
+
+  /** Henter én side med sidetoken via brukertokenet. */
+  async getPage(pageId: string, userToken: string): Promise<FacebookPage> {
+    return this.request<FacebookPage>("GET", pageId, { fields: "id,name,access_token,tasks" }, userToken);
+  }
+
+  /**
+   * Sidene brukeren har gitt appen tilgang til. /me/accounts er ofte tom for
+   * sider av den nye typen og sider som eies via Meta Business – da brukes
+   * sidene brukeren valgte i innloggingsdialogen (granular_scopes) som reserve.
+   * Ingen ekstra tillatelser kreves.
+   */
+  async accessiblePages(userToken: string): Promise<FacebookPage[]> {
+    const pages = await this.listPages(userToken);
+    if (pages.length) return pages;
+    const info = await this.debugToken(userToken);
+    const ids = [
+      ...new Set(
+        info.granularScopes
+          .filter((g) => g.scope === "pages_show_list" || g.scope === "pages_manage_posts" || g.scope === "pages_read_engagement")
+          .flatMap((g) => g.target_ids ?? []),
+      ),
+    ];
+    const found: FacebookPage[] = [];
+    for (const id of ids.slice(0, 25)) {
+      try {
+        const p = await this.getPage(id, userToken);
+        if (p.access_token) found.push(p);
+      } catch (err) {
+        if (err instanceof GraphError && err.needsReconnect) throw err;
+      }
+    }
+    return found;
   }
 
   async publishFeed(pageId: string, pageToken: string, input: { message: string; link?: string | null }): Promise<{ id: string }> {

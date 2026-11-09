@@ -21,7 +21,7 @@ export async function confirmPage(_prev: ActionResult | undefined, fd: FormData)
     if (!cookie?.userToken) throw new UserFacingError("Innloggingen hos Facebook er utløpt. Start tilkoblingen på nytt.");
     const graph = graphClient();
     if (!graph) throw new UserFacingError("Meta-appen er ikke konfigurert.");
-    const pages = await graph.listPages(cookie.userToken);
+    const pages = await graph.accessiblePages(cookie.userToken);
     const page = pages.find((p) => p.id === pageId);
     if (!page) throw new UserFacingError("Fant ikke siden. Har du gitt tilgang til den hos Facebook?");
     if (page.tasks && !page.tasks.includes("CREATE_CONTENT")) throw new UserFacingError("Du har ikke rettighet til å publisere innhold på denne siden.");
