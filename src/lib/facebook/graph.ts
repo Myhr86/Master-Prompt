@@ -41,6 +41,9 @@ export interface PagePost {
   permalink_url?: string;
   full_picture?: string;
   status_type?: string;
+  reactions?: { summary?: { total_count?: number } };
+  comments?: { summary?: { total_count?: number } };
+  shares?: { count?: number };
 }
 
 export interface FacebookPage {
@@ -305,7 +308,11 @@ export class GraphClient {
     const out: PagePost[] = [];
     let after: string | undefined;
     while (out.length < max) {
-      const params: Record<string, string> = { fields: "id,message,created_time,permalink_url,full_picture,status_type", limit: String(Math.min(50, max - out.length)) };
+      // Engasjement hentes i samme kall (ingen ekstra forespørsler per innlegg).
+      const params: Record<string, string> = {
+        fields: "id,message,created_time,permalink_url,full_picture,status_type,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0),shares",
+        limit: String(Math.min(50, max - out.length)),
+      };
       if (after) params.after = after;
       const r = await this.request<{ data: PagePost[]; paging?: { cursors?: { after?: string }; next?: string } }>("GET", `${pageId}/published_posts`, params, pageToken);
       out.push(...r.data);

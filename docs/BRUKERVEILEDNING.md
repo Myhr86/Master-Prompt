@@ -93,6 +93,15 @@ Hvis noe går galt, får innlegget status **Feilet** med en forklaring, og du ka
 
 Under **Mer → Analyse** ser du reaksjoner, kommentarer og delinger for publiserte innlegg. Trykk **Be Claude om analyse og forslag** for å få tips om hvilke innlegg som fungerer best. Det krever statistikk for minst tre innlegg. Systemet viser bare tall som faktisk er hentet fra Facebook.
 
+## 8a. Beste tidspunkt og balanse
+
+Under **Analyse** finner du to kort:
+
+- **Beste tidspunkt å poste** viser hvilke dager og tider innleggene dine får best respons. Grønt betyr bedre enn vanlig. Trykk **Bruk disse tidene** for å ta i bruk anbefalingen.
+- **Balanse i innholdet** viser fordelingen mellom salg, gaveideer, håndverk og engasjement siste 30 dager. Claude tar automatisk hensyn til det som mangler når nye innlegg lages.
+
+Tallene oppdateres hver natt og når du trykker **Hent eksisterende innlegg** under Innstillinger.
+
 ## 8b. Se hvilke innlegg som gir salg
 
 Lenker til nettbutikken får automatisk en sporingskode, for eksempel `?utm_source=facebook&utm_campaign=gaveide&utm_content=1a2b3c4d`. Under **Analyse → Trafikk og salg i nettbutikken** ser du koden for hvert innlegg. I Shopify går du til **Analyse → Rapporter** og søker etter «UTM». Da ser du besøk og salg per kode.

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireOwner } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { enforceRateLimit } from "@/lib/security";
@@ -54,5 +55,43 @@ export async function analyzeWithClaude(): Promise<ActionResult<AnalysisResult>>
     return { ok: true, data: res.data };
   } catch (err) {
     return toActionError(err, "analyzeWithClaude");
+  }
+}
+
+/** Lar Claude anslå innleggstype for innlegg publisert utenom appen. */
+export async function classifyPagePostsNow(): Promise<ActionResult> {
+  try {
+    const owner = await requireOwner();
+    await enforceRateLimit(`classify:${owner.id}`, 20, 3600);
+    const { classifyUnclassifiedPagePosts } = await import("@/lib/analytics/page-insights");
+    const r = await classifyUnclassifiedPagePosts(50);
+    await audit("ai.page_posts_classified", { actorId: owner.id, details: r });
+    revalidatePath("/analyse");
+    return { ok: true, message: r.classified ? `${r.classified} innlegg er klassifisert.${r.remaining ? ` ${r.remaining} gjenstår – trykk igjen.` : ""}` : "Ingen innlegg mangler type." };
+  } catch (err) {
+    return toActionError(err, "classifyPagePostsNow");
+  }
+}
+
+const applySchema = z.object({
+  days: z.array(z.number().int().min(1).max(7)).min(1).max(7),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+});
+
+/** Bruk anbefalte dager og klokkeslett som foretrukne publiseringstider. */
+export async function applyRecommendedTimes(days: number[], time: string): Promise<ActionResult> {
+  try {
+    const owner = await requireOwner();
+    const input = applySchema.parse({ days, time });
+    const settings = await getSettings();
+    const times = [input.time, ...settings.preferred_times.filter((t) => t !== input.time)].slice(0, 4);
+    const supabase = await createClient();
+    const { error } = await supabase.from("business_settings").update({ preferred_days: [...new Set(input.days)].sort(), preferred_times: times }).eq("id", 1);
+    if (error) throw error;
+    await audit("settings.times_applied", { actorId: owner.id, details: input });
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Foretrukne dager og klokkeslett er oppdatert. Nye forslag legges på disse tidene." };
+  } catch (err) {
+    return toActionError(err, "applyRecommendedTimes");
   }
 }

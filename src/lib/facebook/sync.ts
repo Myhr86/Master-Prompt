@@ -39,10 +39,28 @@ export async function syncPagePosts(max = 100): Promise<{ ok: boolean; message: 
     has_image: Boolean(p.full_picture),
     status_type: p.status_type ?? null,
     imported_at: new Date().toISOString(),
+    reactions: p.reactions?.summary?.total_count ?? null,
+    comments: p.comments?.summary?.total_count ?? null,
+    shares: p.shares?.count ?? (p.reactions ? 0 : null),
+    metrics_updated_at: p.reactions || p.comments ? new Date().toISOString() : null,
   }));
   if (rows.length) {
     const admin = createAdminClient();
-    const { error } = await admin.from("facebook_page_posts").upsert(rows, { onConflict: "facebook_post_id" });
+    let { error } = await admin.from("facebook_page_posts").upsert(rows, { onConflict: "facebook_post_id" });
+    if (error && (error.code === "PGRST204" || error.code === "42703")) {
+      // Migrasjon 7 ikke kjørt: lagre uten engasjementstall.
+      const basic = rows.map((r) => ({
+        page_id: r.page_id,
+        facebook_post_id: r.facebook_post_id,
+        message: r.message,
+        created_time: r.created_time,
+        permalink_url: r.permalink_url,
+        has_image: r.has_image,
+        status_type: r.status_type,
+        imported_at: r.imported_at,
+      }));
+      ({ error } = await admin.from("facebook_page_posts").upsert(basic, { onConflict: "facebook_post_id" }));
+    }
     if (error) {
       if (error.code === "42P01" || error.code === "PGRST205" || /facebook_page_posts/.test(error.message)) {
         return { ok: false, message: "Databasen mangler tabellen for Facebook-innlegg. Kjør supabase/migrations/20261109000004_facebook_page_posts.sql i Supabase → SQL Editor." };

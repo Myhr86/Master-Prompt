@@ -47,6 +47,8 @@ export interface GenerationContext {
   }[];
   slots: { iso: string; weekday: string; theme: string | null }[];
   seasonalEvents: { name: string; date: string; angle: string }[];
+  /** Oppsummering av innholdsmiksen siste periode (tom hvis for lite data). */
+  contentMix?: string;
   /** Eierens egne bilder (kun tekstbeskrivelser sendes – ikke selve bildene). */
   mediaLibrary?: {
     id: string;
@@ -120,7 +122,7 @@ ${products.length ? JSON.stringify(products, null, 1) : "Biblioteket er tomt. La
 MEDIEBANK – eierens egne bilder (velg med suggested_media_id; ${ctx.mediaLibrary?.length ?? 0} bilder)
 ${ctx.mediaLibrary?.length ? JSON.stringify(ctx.mediaLibrary.map((m) => ({ id: m.id, kategori: m.category, beskrivelse: trim(m.description ?? "", 220), stikkord: m.tags, produkt_id: m.product_id ?? undefined, personer: m.people_visible || undefined, sist_brukt: m.last_used_at?.slice(0, 10) ?? "aldri", brukt_ganger: m.use_count })), null, 1) : "Mediebanken er tom."}
 
-TIDLIGERE INNLEGG – fra appen og fra Facebook-siden, nyeste først (${publishedCount} publisert)
+${ctx.contentMix ? `${ctx.contentMix}\n\n` : ""}TIDLIGERE INNLEGG – fra appen og fra Facebook-siden, nyeste først (${publishedCount} publisert)
 ${history.length ? JSON.stringify(history, null, 1) : "Ingen tidligere innlegg."}
 
 VURDER FØR DU SKRIVER

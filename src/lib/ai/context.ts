@@ -4,6 +4,8 @@ import { getProducts, getSettings } from "../data";
 import { nextFreeSlots, nextSlots, osloParts, addDays, WEEKDAYS_NB, osloToUtc } from "../dates";
 import { upcomingSeasonalEvents } from "../calendar/seasons";
 import type { GenerationContext } from "./prompts";
+import { contentMix } from "../analytics/page-insights";
+import { mixSummaryForPrompt } from "../analytics/mix";
 
 /** Bygger konteksten Claude får: innstillinger, produktbibliotek, historikk og tidspunkter. */
 export async function loadGenerationContext(input: {
@@ -77,6 +79,9 @@ export async function loadGenerationContext(input: {
     products,
     productImages: (imagesRes.data ?? []) as GenerationContext["productImages"],
     recentPosts,
+    contentMix: await contentMix(supabase, 30)
+      .then((m) => mixSummaryForPrompt(m, 30))
+      .catch(() => ""),
     mediaLibrary: mediaRes.error ? [] : ((mediaRes.data ?? []) as NonNullable<GenerationContext["mediaLibrary"]>),
     slots,
     seasonalEvents: seasonal.map((s) => ({ name: s.name, date: s.date, angle: s.angle })),

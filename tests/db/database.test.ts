@@ -260,6 +260,13 @@ run("Database: RLS, godkjenning og publiseringsvern", () => {
     expect(other).toHaveLength(0);
   });
 
+  it("engasjement og type for sidens innlegg kan lagres av serveren og leses av eier", async () => {
+    await as(p, { kind: "service" }, (c) => c.query("insert into facebook_page_posts (page_id, facebook_post_id, message, created_time, reactions, comments, shares, post_type) values ('1','1_77','Hei', now(), 10, 2, 1, 'handverk')"));
+    const r = await as(p, O(), (c) => c.query("select reactions, comments, shares, post_type from facebook_page_posts where facebook_post_id='1_77'").then((x) => x.rows[0]));
+    expect(r).toEqual({ reactions: 10, comments: 2, shares: 1, post_type: "handverk" });
+    await expect(as(p, O(), (c) => c.query("update facebook_page_posts set reactions=999"))).rejects.toThrow(/permission denied/);
+  });
+
   it("sporingskoder: standardverdier og validering", async () => {
     const row = await as(p, O(), (c) => c.query("select utm_enabled, utm_source, utm_medium from business_settings").then((r) => r.rows[0]));
     expect(row).toEqual({ utm_enabled: true, utm_source: "facebook", utm_medium: "social" });

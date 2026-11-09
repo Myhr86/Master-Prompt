@@ -10,6 +10,9 @@ import { Card, EmptyState, Notice, PageHeader } from "@/components/ui";
 import { POST_TYPE_LABEL } from "@/lib/ai/schemas";
 import { AnalyticsActions } from "./analytics-actions";
 import { readUtm } from "@/lib/posts/utm";
+import { bestTimesFrom, contentMix, engagementMix, loadPagePosts } from "@/lib/analytics/page-insights";
+import { getSettings } from "@/lib/data";
+import { BestTimesCard, MixCard } from "./insights-cards";
 
 export const metadata: Metadata = { title: "Analyse" };
 export const maxDuration = 300;
@@ -22,6 +25,10 @@ export default async function AnalyticsPage() {
     supabase.from("posts").select("id, title, post_type, published_at, facebook_post_url, link_url").eq("status", "PUBLISHED").order("published_at", { ascending: false }).limit(100),
     supabase.from("analytics").select("post_id, metric_name, metric_value, recorded_at").order("recorded_at", { ascending: false }).limit(10000),
   ]);
+  const [pageRows, mix30, settings] = await Promise.all([loadPagePosts(supabase, 180), contentMix(supabase, 30), getSettings()]);
+  const bt = bestTimesFrom(pageRows ?? []);
+  const longTerm = engagementMix(pageRows ?? []);
+  const unclassified = (pageRows ?? []).filter((r) => !r.post_type && r.message.trim()).length;
   const latest = latestMetricsByPost(metrics ?? []);
   const withData = (posts ?? []).filter((p) => latest.has(p.id));
   const metricNames = [...new Set((metrics ?? []).map((m) => m.metric_name))];
@@ -53,6 +60,10 @@ export default async function AnalyticsPage() {
           </Notice>
         </div>
       )}
+      <div className="mb-6 grid gap-6 lg:grid-cols-2">
+        <BestTimesCard bt={bt} current={{ days: settings.preferred_days, times: settings.preferred_times }} hasTable={pageRows !== null} />
+        <MixCard mix={mix30} longTerm={longTerm} unclassified={unclassified} aiReady={integ.anthropic} />
+      </div>
       <TrafficCard posts={(posts ?? []).map((p) => ({ id: p.id, title: p.title, published_at: p.published_at, utm: readUtm(p.link_url) }))} />
       <AnalyticsActions canRefresh={integ.meta && fb?.connection_status === "connected"} canAnalyze={integ.anthropic && withData.length >= 3} />
 

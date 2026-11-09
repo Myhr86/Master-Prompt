@@ -47,6 +47,7 @@ Testresultater: [`docs/TESTRESULTATER.md`](docs/TESTRESULTATER.md)
 - **Publisering:** tekst-, lenke- og bildeinnlegg via Pages API, enten med en gang eller planlagt. Publiseringen er beskyttet mot dobbeltpublisering, og et uklart svar fra Facebook avklares mot Facebook før et nytt forsøk.
 - **Kalender:** måned-, uke- og dagsvisning, sju statuser, dra og slipp (eller «Flytt» på mobil) og forslag ved norske merkedager (valentinsdag, morsdag, påske, konfirmasjon, 17. mai, bryllupssesong, sommer, farsdag, advent, julegaver og jul).
 - **Sporing av trafikk:** lenker til nettbutikken får UTM-parametere (`utm_source=facebook`, `utm_medium=social`, `utm_campaign` = innleggstype, `utm_content` = kode per innlegg). De legges på før godkjenning, så lenken som publiseres er den eieren har godkjent. Besøk og salg leses i Shopify, og analysesiden viser koden for hvert innlegg. Kan slås av og justeres under Innstillinger.
+- **Beste tidspunkt og balanse:** reaksjoner, kommentarer og delinger hentes for alle innlegg på siden i samme kall som innleggene. Analysesiden viser hvilke ukedager og tidsrom som gir best respons (rangering, ikke råtall, og usikre ruter markeres), med knapp for å bruke anbefalingen. Den viser også fordelingen av innholdstyper siste 30 dager mot en anbefalt miks. Miksen sendes til Claude, som prioriterer det som mangler. Typen til innlegg publisert utenom appen anslås av Claude ut fra teksten.
 - **Analyse:** reaksjoner, kommentarer og delinger, pluss valgfrie innsiktsmetrikker hvis Meta gir tilgang. Viser utvikling over tid og resultater per innleggstype, og Claude kan analysere tallene og foreslå forbedringer. Systemet viser bare tall som faktisk er hentet.
 - **Innstillinger:** bedriftsnavn, nettadresse, skrivestil, antall innlegg per uke, dager, klokkeslett, temaer, emneknagger, prioriterte produkter, sesonger, AI-modell, bildetjeneste, testmodus og Facebook-tilkobling.
 - **Testmodus** (standard): alle kontroller kjøres, men ingenting sendes til Facebook.
@@ -91,7 +92,7 @@ openssl rand -hex 32      # CRON_SECRET
 1. Opprett et prosjekt på <https://supabase.com> (velg region **EU**, f.eks. Frankfurt eller Stockholm).
 2. **Kjør migrasjonene** med én av disse metodene:
    - Supabase CLI: `supabase link --project-ref <ref>` og deretter `supabase db push`
-   - eller kopier innholdet i hver fil i `supabase/migrations/` inn i *SQL Editor* og kjør dem i rekkefølge (`…000001_init.sql`, `…000002_storage.sql`, `…000003_product_image_sources.sql`, `…000004_facebook_page_posts.sql`, `…000005_media_library.sql`, `…000006_utm_tracking.sql`).
+   - eller kopier innholdet i hver fil i `supabase/migrations/` inn i *SQL Editor* og kjør dem i rekkefølge (`…000001_init.sql`, `…000002_storage.sql`, `…000003_product_image_sources.sql`, `…000004_facebook_page_posts.sql`, `…000005_media_library.sql`, `…000006_utm_tracking.sql`, `…000007_page_post_metrics.sql`).
 3. **Auth → Providers → Email:** slå på e-post/passord og **slå av «Allow new users to sign up»**. Systemet er privat.
 4. **Auth → URL Configuration:** sett *Site URL* til `APP_URL`.
 5. Hent verdiene under *Project Settings → API*: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` og `SUPABASE_SERVICE_ROLE_KEY` (hemmelig).

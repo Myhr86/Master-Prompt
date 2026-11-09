@@ -145,6 +145,11 @@ describe("AI-innholdsprodusent (test 3–4)", () => {
     expect(pc(gen({ suggested_media_id: "55555555-5555-4555-8555-555555555555" }), { mediaIds: new Set() }).suggested_media_id).toBeNull();
   });
 
+  it("innholdsmiksen sendes med når den finnes", () => {
+    expect(buildGenerationPrompt(ctx({ contentMix: "BALANSE I INNHOLDET siste 30 dager: test" }))).toContain("BALANSE I INNHOLDET siste 30 dager");
+    expect(buildGenerationPrompt(ctx())).not.toContain("BALANSE I INNHOLDET");
+  });
+
   it("tidligere innlegg sendes med for å unngå gjentakelser", () => {
     const p = buildGenerationPrompt(ctx({ recentPosts: [{ title: "Gammel tittel", content: "Gammel tekst", post_type: "gaveide", status: "PUBLISHED", published_at: "2026-11-01", created_at: "2026-11-01" }] }));
     expect(p).toContain("Gammel tittel");
